@@ -1,23 +1,17 @@
 
 import torch
 import pandas as pd
-
+import pyterrier as pt
 import random
 from colbert.evaluation.load_model import load_model
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.slow import slow_rerank
-from pyterrier import tqdm
-
-import pyterrier as pt
-
-from collections import defaultdict
-
-
-import numpy as np
-from tqdm import tqdm
+from colbert.ranking.faiss_term_index import FaissNNTerm
 from colbert.indexing.loaders import get_parts, load_doclens
+from pyterrier import tqdm
+from collections import defaultdict
+import numpy as np
 
-import torch.nn as nn
 class file_part_mmap:
     def __init__(self, file_path, file_doclens):
         self.dim = 128 # TODO
@@ -86,6 +80,7 @@ class re_ranker_mmap:
         # [0, 1000, 2000, ...]
         self.part_pid_begin_offsets
     
+    @staticmethod
     def _load_parts(index_path, part_doclens, memtype="mmap"):
         # Every pt file is loaded and managed independently, with local pids
         _, all_parts_paths, _ = get_parts(index_path)
@@ -130,7 +125,7 @@ class re_ranker_mmap:
 
         Q = inference.queryFromText([query])
         if self.verbose:
-            pid_iter = pt.tqdm(pids, desc="lookups", unit="d")
+            pid_iter = tqdm(pids, desc="lookups", unit="d")
         else:
             pid_iter = pids
 
@@ -163,7 +158,7 @@ class re_ranker_mmap:
         #weightE = weightE(Q,E) # calculate the mean_cos score of each expansion term with all query term, the softmax normalised as the weight of the expansion term
         
         if self.verbose:
-            pid_iter = pt.tqdm(pids, desc="lookups", unit="d")
+            pid_iter = tqdm(pids, desc="lookups", unit="d")
         else:
             pid_iter = pids
 
@@ -194,14 +189,20 @@ class ColBERTFactory():
         args.similarity = 'cosine'
         args.colbert, args.checkpoint = load_model(args)
         args.inference = ModelInference(args.colbert, amp=args.amp)
-        args.faiss_depth = 1000
+        
+        #args.faiss_depth = 1000
         self.args = args
         self.memtype = memtype
 
         #we load this lazily
         self.rrm = None
+        self.faiss_index = None
         
     def _rrm(self):
+        """
+        Returns an instance of the re_ranker_mmap class.
+        Only one is created, if necessary.
+        """
 
         if self.rrm is not None:
             return self.rrm
@@ -209,14 +210,21 @@ class ColBERTFactory():
         self.rrm = re_ranker_mmap(
             self.index_path + "/" + self.index_name, 
             self.args, 
-            self.inference, 
+            self.args.inference, 
             verbose=True, 
             memtype=self.memtyp)
         return self.rrm
         
-
-    def nn_term():
-        return FaissNNTerm()
+    def nn_term(self, df=False):
+        """
+        Returns an instance of the FaissNNTerm class, which provides statistics about terms
+        """
+        return FaissNNTerm(
+            self.args.colbert,
+            self.index_root,
+            self.index_name,
+            self._faiss_index(),
+            df=df)
 
     def query_encoder(self) -> TransformerBase:
         #TODO this should encode the queries
@@ -225,6 +233,9 @@ class ColBERTFactory():
         pass
 
     def _faiss_index(self):
+        """
+        Returns an instance of the Colbert FaissIndex class, which provides nearest neighbour information
+        """
         if self.faiss_index is not None:
             return self.faiss_index
         self.faiss_index = FaissIndex(self.args.index_path, self.args.faiss_index_path, self.args.nprobe, self.args.part_range)
@@ -246,7 +257,7 @@ class ColBERTFactory():
             rtr = []
             for row in queries_df.itertuples():
                 qid = row.qid
-                Q, ids, masks = self.inference.queryFromText([row.query], bsize=512, with_ids=True)
+                Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                 Q_f = Q[0:1, :, :]
                 all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=True)
                 for passage_ids in all_pids:
@@ -271,6 +282,9 @@ class ColBERTFactory():
         return pt.apply.generic(_single_retrieve_qembs if query_encoded else _single_retrieve)
 
     def text_scorer(self, query_encoded=False, doc_attr="text", verbose=False) -> TransformerBase:
+        """
+        Returns a transformer that uses ColBERT model to score the *text* of documents.
+        """
         #input: qid, query, docno, text
         #OR
         #input: qid, query, query_embs, query_toks, query_weights, docno, text
@@ -292,6 +306,9 @@ class ColBERTFactory():
         return pt.apply.generic(_text_scorer)
 
     def index_scorer(self, query_encoded=False, add_ranks=False) -> TransformerBase:
+        """
+        Returns a transformer that uses the ColBERT index to perform scoring of documents to queries 
+        """
         #input: qid, query, docno, 
         #OR
         #input: qid, query, query_embs, query_toks, query_weights, docno
