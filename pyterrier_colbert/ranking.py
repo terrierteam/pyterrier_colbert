@@ -1,16 +1,22 @@
 
+import os
 import torch
 import pandas as pd
 import pyterrier as pt
+from pyterrier import tqdm
+from pyterrier.transformer import TransformerBase
+
 import random
 from colbert.evaluation.load_model import load_model
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.slow import slow_rerank
-from colbert.ranking.faiss_term_index import FaissNNTerm
 from colbert.indexing.loaders import get_parts, load_doclens
-from pyterrier import tqdm
+from colbert.indexing.faiss import get_faiss_index_name
+from colbert.ranking.faiss_index import FaissIndex
+from colbert.ranking.faiss_term_index import FaissNNTerm
 from collections import defaultdict
 import numpy as np
+from warnings import warn
 
 class file_part_mmap:
     def __init__(self, file_path, file_doclens):
@@ -89,9 +95,9 @@ class re_ranker_mmap:
             all_parts_paths = [ file.replace(".pt", ".store") for file in all_parts_paths ]
             mmaps = [file_part_mmap(path, doclens) for path, doclens in zip(all_parts_paths, part_doclens)]
         elif memtype == "mem":
-            mmaps = [file_part_mem(path, doclens) for path, doclens in tqdm(zip(all_parts_paths, part_doclens), total=len(all_parts_paths), unit="shard")]
+            mmaps = [file_part_mem(path, doclens) for path, doclens in tqdm(zip(all_parts_paths, part_doclens), total=len(all_parts_paths), desc="Loading index shards to memory", unit="shard")]
         else:
-            assert False
+            assert False, "Unknown memtype %s" % memtype
         return mmaps
 
     def get_embedding(self, pid):
@@ -176,21 +182,38 @@ class ColBERTFactory():
 
     def __init__(self, 
             colbert_model : str, 
-            index_location : str, 
+            index_root : str, 
             index_name : str,
             faiss=True,
-            memtype = "mem"):
+            memtype = "mem",
+            gpu=True):
         
         args = Object()
         args.query_maxlen = 32
         args.doc_maxlen = 180
         args.dim = 128
         args.bsize = 128
-        args.similarity = 'cosine'
+        args.similarity = 'cosine'        
+        args.dim = 128
+        args.amp = True
+        args.nprobe = 10
+        args.part_range = None
+        args.mask_punctuation = False
+        args.partitions = None
+
+        if index_root is None or index_name is None:
+            warn("No index_root and index_name specified - no index ranking possible")
+        else:
+            self.index_path = os.path.join(index_root, index_name)
+
+        if not gpu:
+            warn("Gpu disabled, YMMV")
+            import colbert.parameters
+            colbert.parameters.DEVICE = torch.device("cpu")
+        args.checkpoint = colbert_model
         args.colbert, args.checkpoint = load_model(args)
         args.inference = ModelInference(args.colbert, amp=args.amp)
         
-        #args.faiss_depth = 1000
         self.args = args
         self.memtype = memtype
 
@@ -206,13 +229,13 @@ class ColBERTFactory():
 
         if self.rrm is not None:
             return self.rrm
-
+        print("Loading reranking index, memtype=%s" % self.memtype)
         self.rrm = re_ranker_mmap(
-            self.index_path + "/" + self.index_name, 
+            self.index_path, 
             self.args, 
             self.args.inference, 
             verbose=True, 
-            memtype=self.memtyp)
+            memtype=self.memtype)
         return self.rrm
         
     def nn_term(self, df=False):
@@ -226,11 +249,24 @@ class ColBERTFactory():
             self._faiss_index(),
             df=df)
 
-    def query_encoder(self) -> TransformerBase:
-        #TODO this should encode the queries
-        #input: qid, query
-        #output: qid, query, query_embs, query_toks, query_weights
-        pass
+    def query_encoder(self, detach=True) -> TransformerBase:
+        """
+        Returns a transformer that can encode queries using ColBERT's model.
+        input: qid, query
+        output: qid, query, query_embs, query_toks,
+        """
+        def _encode_query(row):
+            qid = row.qid
+            Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
+            if detach:
+                Q = Q.cpu()
+            return pd.Series([Q[0], ids[0]])
+            
+        def row_apply(df):
+            df[["query_embs", "query_toks"]] = df.apply(_encode_query, axis=1)
+            return df
+        
+        return pt.apply.generic(row_apply)
 
     def _faiss_index(self):
         """
@@ -238,10 +274,12 @@ class ColBERTFactory():
         """
         if self.faiss_index is not None:
             return self.faiss_index
-        self.faiss_index = FaissIndex(self.args.index_path, self.args.faiss_index_path, self.args.nprobe, self.args.part_range)
+        faiss_index_path = get_faiss_index_name(self.args)
+        faiss_index_path = os.path.join(self.index_path, faiss_index_path)
+        self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range)
         return self.faiss_index
 
-    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000) -> TransformerBase:
+    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=True) -> TransformerBase:
         #input: qid, query
         #OR
         #input: qid, query, query_embs, query_toks, query_weights
@@ -255,7 +293,9 @@ class ColBERTFactory():
         
         def _single_retrieve(queries_df):
             rtr = []
-            for row in queries_df.itertuples():
+            iter = queries_df.itertuples()
+            iter = tqdm(iter, unit="q") if verbose else iter
+            for row in iter:
                 qid = row.qid
                 Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                 Q_f = Q[0:1, :, :]
@@ -266,9 +306,11 @@ class ColBERTFactory():
                         rtr.append([qid, row.query, str(pid), ids[0], Q[0, :, :].cpu()])
             return pd.DataFrame(rtr, columns=["qid","query",'docno','query_toks','query_embs'])
 
-        def _single_retrieve_qembs(self, queries_df):
+        def _single_retrieve_qembs(queries_df):
             rtr = []
-            for row in queries_df.itertuples():
+            iter = queries_df.itertuples()
+            iter = tqdm(iter, unit="q") if verbose else iter
+            for row in iter:
                 qid = row.qid
                 embs = row.query_embs
                 Q_f = torch.unsqueeze(embs, 0)
