@@ -5,7 +5,7 @@ import pandas as pd
 import pyterrier as pt
 from pyterrier import tqdm
 from pyterrier.transformer import TransformerBase
-
+from typing import Union, Tuple
 import random
 from colbert.evaluation.load_model import load_model
 from colbert.modeling.inference import ModelInference
@@ -13,8 +13,10 @@ from colbert.evaluation.slow import slow_rerank
 from colbert.indexing.loaders import get_parts, load_doclens
 from colbert.indexing.faiss import get_faiss_index_name
 from colbert.ranking.faiss_index import FaissIndex
+import colbert.modeling.colbert
 from collections import defaultdict
 import numpy as np
+import pickle
 from warnings import warn
 
 class file_part_mmap:
@@ -180,10 +182,10 @@ class re_ranker_mmap:
 class ColBERTFactory():
 
     def __init__(self, 
-            colbert_model : str, 
+            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], 
             index_root : str, 
             index_name : str,
-            faiss=True,
+            faiss_partitions=100,
             memtype = "mem",
             gpu=True):
         
@@ -198,7 +200,7 @@ class ColBERTFactory():
         args.nprobe = 10
         args.part_range = None
         args.mask_punctuation = False
-        args.partitions = None
+        args.partitions = faiss_partitions
 
         self.index_root = index_root
         self.index_name = index_name
@@ -206,16 +208,33 @@ class ColBERTFactory():
             warn("No index_root and index_name specified - no index ranking possible")
         else:
             self.index_path = os.path.join(index_root, index_name)
+            docnos_file = os.path.join(self.index_path, "docnos.pkl.gz")
+            if os.path.exists(docnos_file):
+                with pt.io.autoopen(docnos_file, "rb") as f:
+                    self.docid2docno = pickle.load(f)
+                    # support reverse docno lookup in memory
+                    self.docno2docid = { docno : docid for docid, docno in enumerate(self.docid2docno) }
+                    self.docid_as_docno = False
+            else:
+                self.docid_as_docno = True
 
         if not gpu:
             warn("Gpu disabled, YMMV")
             import colbert.parameters
             colbert.parameters.DEVICE = torch.device("cpu")
-        args.checkpoint = colbert_model
-        args.colbert, args.checkpoint = load_model(args)
+        if isinstance (colbert_model, str):
+            args.checkpoint = colbert_model
+            args.colbert, args.checkpoint = load_model(args)
+        else:
+            assert isinstance(colbert_model, tuple)
+            args.colbert, args.checkpoint = colbert_model
+            from colbert.modeling.colbert import ColBERT
+            assert isinstance(args.colbert, ColBERT)
+            assert isinstance(args.checkpoint, dict)
+            
         args.inference = ModelInference(args.colbert, amp=args.amp)
-        
         self.args = args
+
         self.memtype = memtype
 
         #we load this lazily
@@ -259,11 +278,11 @@ class ColBERTFactory():
         output: qid, query, query_embs, query_toks,
         """
         def _encode_query(row):
-            qid = row.qid
-            Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
-            if detach:
-                Q = Q.cpu()
-            return pd.Series([Q[0], ids[0]])
+            with torch.no_grad():
+                Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
+                if detach:
+                    Q = Q.cpu()
+                return pd.Series([Q[0], ids[0]])
             
         def row_apply(df):
             df[["query_embs", "query_toks"]] = df.apply(_encode_query, axis=1)
@@ -300,14 +319,15 @@ class ColBERTFactory():
             iter = tqdm(iter, unit="q") if verbose else iter
             for row in iter:
                 qid = row.qid
-                Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
+                with torch.no_grad():
+                    Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                 Q_f = Q[0:1, :, :]
                 all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=True)
                 for passage_ids in all_pids:
                     print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
-                        rtr.append([qid, row.query, str(pid), ids[0], Q[0, :, :].cpu()])
-            return pd.DataFrame(rtr, columns=["qid","query",'docno','query_toks','query_embs'])
+                        rtr.append([qid, row.query, pid, ids[0], Q[0, :, :].cpu()])
+            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs']))
 
         def _single_retrieve_qembs(queries_df):
             rtr = []
@@ -321,8 +341,8 @@ class ColBERTFactory():
                 for passage_ids in all_pids:
                     print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
-                        rtr.append([qid, row.query, str(pid), row.query_toks, row.query_embs])
-            return pd.DataFrame(rtr, columns=["qid","query",'docno','query_toks','query_embs']) 
+                        rtr.append([qid, row.query, pid, row.query_toks, row.query_embs])
+            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])) 
         
         return pt.apply.generic(_single_retrieve_qembs if query_encoded else _single_retrieve)
 
@@ -346,15 +366,29 @@ class ColBERTFactory():
                     ranking = slow_rerank(self.args, query, group["docno"].values, group[doc_attr].values.tolist())
                     for rank, (score, pid, passage) in enumerate(ranking):
                             rtr.append([qid, query, pid, score, rank])          
-            return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
+            return pd.DataFrame(rtr, columns=["qid", "query", "docid", "score", "rank"])
 
         return pt.apply.generic(_text_scorer)
+
+    def _add_docids(self, df):
+        if self.docid_as_docno:
+            df["docid"] = df["docno"].astype('int64')
+        else:
+            df["docid"] = df["docno"].apply(lambda docno : self.docno2docid[docno])
+        return df
+
+    def _add_docnos(self, df):
+        if self.docid_as_docno:
+            df["docno"] = df["docid"].astype('str')
+        else:
+            df["docno"] = df["docid"].apply(lambda docid : self.docid2docno[docid])
+        return df
 
     def index_scorer(self, query_encoded=False, add_ranks=False) -> TransformerBase:
         """
         Returns a transformer that uses the ColBERT index to perform scoring of documents to queries 
         """
-        #input: qid, query, docno, 
+        #input: qid, query, docno, [docid] 
         #OR
         #input: qid, query, query_embs, query_toks, query_weights, docno
 
@@ -364,7 +398,8 @@ class ColBERTFactory():
 
         def rrm_scorer(qid_group):
             qid_group = qid_group.copy()
-            qid_group["docid"] = qid_group["docno"].astype('int64')
+            if "docid" not in qid_group.columns:
+                qid_group = self._add_docids(qid_group)
             qid_group.sort_values("docid", inplace=True)
             docids = qid_group["docid"].values
             scores = rrm.our_rerank(qid_group.iloc[0]["query"], docids)
@@ -375,7 +410,8 @@ class ColBERTFactory():
 
         def rrm_scorer_query_embs(qid_group):
             qid_group = qid_group.copy()
-            qid_group["docid"] = qid_group["docno"].astype('int')
+            if "docid" not in qid_group.columns:
+                qid_group = self._add_docids(qid_group)
             qid_group.sort_values("docid", inplace=True)
             docids = qid_group["docid"].values
             weights = None
