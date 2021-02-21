@@ -13,7 +13,6 @@ from colbert.evaluation.slow import slow_rerank
 from colbert.indexing.loaders import get_parts, load_doclens
 from colbert.indexing.faiss import get_faiss_index_name
 from colbert.ranking.faiss_index import FaissIndex
-from colbert.ranking.faiss_term_index import FaissNNTerm
 from collections import defaultdict
 import numpy as np
 from warnings import warn
@@ -201,6 +200,8 @@ class ColBERTFactory():
         args.mask_punctuation = False
         args.partitions = None
 
+        self.index_root = index_root
+        self.index_name = index_name
         if index_root is None or index_name is None:
             warn("No index_root and index_name specified - no index ranking possible")
         else:
@@ -242,11 +243,13 @@ class ColBERTFactory():
         """
         Returns an instance of the FaissNNTerm class, which provides statistics about terms
         """
+        from colbert.ranking.faiss_term_index import FaissNNTerm
+        #TODO accept self.args.inference as well
         return FaissNNTerm(
             self.args.colbert,
             self.index_root,
             self.index_name,
-            self._faiss_index(),
+            faiss_index = self._faiss_index(),
             df=df)
 
     def query_encoder(self, detach=True) -> TransformerBase:
@@ -388,4 +391,11 @@ class ColBERTFactory():
             return pt.apply.by_query(rrm_scorer_query_embs) 
         return pt.apply.by_query(rrm_scorer) 
 
-
+    def end_to_end(self) -> TransformerBase:
+        """
+        Returns a transformer composition that uses a ColBERT FAISS index to retrieve documents, followed by a ColBERT index 
+        to perform accurate scoring of the retrieved documents. Equivalent `colbertfactory.set_retrieve() >> colbertfactory.index_scorer()`.
+        """
+        #input: qid, query, 
+        #output: qid, query, docno, score
+        return self.set_retrieve() >> self.index_scorer()
