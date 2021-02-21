@@ -5,6 +5,14 @@ Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [Col
 
 ## Usage
 
+Given an existing ColBERT checkpoint, an end-to-end ColBERT dense retrieval index can be created as follows:
+
+```python
+from pyterrier_colbert.indexing import ColBERTIndexer
+indexer = ColBERTIndexer("/path/to/checkpoint.dnn", "/path/to/index", "index_name")
+indexer.index(dataset.get_corpus_iter())
+```
+
 An end-to-end ColBERT dense retrieval pipeline can be formulated as follows:
 
 ```python
@@ -13,7 +21,7 @@ pytcolbert = ColBERTFactory("/path/to/checkpoint.dnn", "/path/to/index", "index_
 dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer()
 ```
 
-A ColBERT re-ranker of BM25 can be formulated as follows:
+A ColBERT re-ranker of BM25 can be formulated as follows (you will need to have the [text saved in your Terrier index](https://pyterrier.readthedocs.io/en/latest/text.html)):
 
 ```python
 bm25 = pt.BatchRetrieve(terrier_index, wmodel="BM25", metadata=["docno", "text"])
