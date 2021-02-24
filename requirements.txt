@@ -1,4 +1,3 @@
 python-terrier
-pytorch
 pandas
 git+https://github.com/cmacdonald/ColBERT.git@v0.2#egg=ColBERT
