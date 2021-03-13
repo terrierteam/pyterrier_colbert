@@ -32,6 +32,7 @@ from . import load_checkpoint
 # monkeypatch to use our downloading version
 import colbert.evaluation.loaders
 colbert.evaluation.loaders.load_checkpoint = load_checkpoint
+colbert.evaluation.loaders.load_model.__globals__['load_checkpoint'] = load_checkpoint
 from colbert.utils.utils import print_message
 import pickle
 from colbert.indexing.index_manager import IndexManager

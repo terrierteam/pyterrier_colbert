@@ -12,6 +12,7 @@ from . import load_checkpoint
 # monkeypatch to use our downloading version
 import colbert.evaluation.loaders
 colbert.evaluation.loaders.load_checkpoint = load_checkpoint
+colbert.evaluation.loaders.load_model.__globals__['load_checkpoint'] = load_checkpoint
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.slow import slow_rerank
 from colbert.indexing.loaders import get_parts, load_doclens
