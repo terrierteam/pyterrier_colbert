@@ -160,7 +160,7 @@ class re_ranker_mmap:
         for group in more_itertools.chunked(pids, batch_size):
             batch_scores = self.our_rerank(query, group, gpu)
             allscores.extend(batch_scores)
-        return allscores.tolist()
+        return allscores
         
         
     def our_rerank_with_embeddings(self, qembs, pids, weightsQ=None, gpu=True):
