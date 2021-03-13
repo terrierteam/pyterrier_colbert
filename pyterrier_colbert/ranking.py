@@ -149,7 +149,18 @@ class re_ranker_mmap:
             D_ = D_.cuda()
 
         scores = colbert.score(Q, D_).cpu()
+        del(D_)
         return scores.tolist()
+
+    def our_rerank_batched(self, query, pids, gpu=True, batch_size=1000):
+        import more_itertools
+        if len(pids) < batch_size:
+            return self.our_rerank(query, pids, gpu=gpu)
+        allscores=[]
+        for group in more_itertools.chunked(pids, batch_size):
+            batch_scores = self.our_rerank(query, group, gpu)
+            allscores.extend(batch_scores)
+        return allscores.tolist()
         
         
     def our_rerank_with_embeddings(self, qembs, pids, weightsQ=None, gpu=True):
@@ -181,7 +192,6 @@ class re_ranker_mmap:
             D_ = D_.cuda()
         maxscoreQ = (Q @ D_.permute(0, 2, 1)).max(2).values.cpu()
         scores = (weightsQ*maxscoreQ).sum(1).cpu()
-        print(scores)
         return scores.tolist()
 
 class ColBERTFactory():
@@ -308,7 +318,7 @@ class ColBERTFactory():
         self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range)
         return self.faiss_index
 
-    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=True) -> TransformerBase:
+    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False) -> TransformerBase:
         #input: qid, query
         #OR
         #input: qid, query, query_embs, query_toks, query_weights
@@ -329,7 +339,7 @@ class ColBERTFactory():
                 with torch.no_grad():
                     Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                 Q_f = Q[0:1, :, :]
-                all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=True)
+                all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=verbose)
                 for passage_ids in all_pids:
                     print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
@@ -344,7 +354,7 @@ class ColBERTFactory():
                 qid = row.qid
                 embs = row.query_embs
                 Q_f = torch.unsqueeze(embs, 0)
-                all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=True)
+                all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=verbose)
                 for passage_ids in all_pids:
                     print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
@@ -409,7 +419,7 @@ class ColBERTFactory():
                 qid_group = self._add_docids(qid_group)
             qid_group.sort_values("docid", inplace=True)
             docids = qid_group["docid"].values
-            scores = rrm.our_rerank(qid_group.iloc[0]["query"], docids)
+            scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids)
             qid_group["score"] = scores
             if add_ranks:
                 return pt.model.add_ranks(qid_group)
@@ -424,6 +434,7 @@ class ColBERTFactory():
             weights = None
             if "query_weights" in qid_group.columns:
                 weights = qid_group.iloc[0].query_weights
+            #TODO batching
             scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights)
             qid_group["score"] = scores
             if add_ranks:
@@ -437,7 +448,7 @@ class ColBERTFactory():
     def end_to_end(self) -> TransformerBase:
         """
         Returns a transformer composition that uses a ColBERT FAISS index to retrieve documents, followed by a ColBERT index 
-        to perform accurate scoring of the retrieved documents. Equivalent `colbertfactory.set_retrieve() >> colbertfactory.index_scorer()`.
+        to perform accurate scoring of the retrieved documents. Equivalent to `colbertfactory.set_retrieve() >> colbertfactory.index_scorer()`.
         """
         #input: qid, query, 
         #output: qid, query, docno, score
