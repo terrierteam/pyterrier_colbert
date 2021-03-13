@@ -454,11 +454,11 @@ class ColBERTFactory():
         """
         Provides a diagram explaining the interaction between a query and the text of a document
         """
-        embsD, idsD = self.inference.docFromText([document], with_ids=True)
+        embsD, idsD = self.args.inference.docFromText([document], with_ids=True)
         return self._explain(query, embsD, idsD)
     
     def _explain(self, query, embsD, idsD):
-        embsQ, idsQ, masksQ = self.inference.queryFromText([query], with_ids=True)
+        embsQ, idsQ, masksQ = self.args.inference.queryFromText([query], with_ids=True)
 
         interaction = (embsQ[0] @ embsD[0].T).cpu().numpy().T
         
