@@ -1,7 +1,7 @@
 
-import importlib
-ranking = importlib.import_module('.' + 'ranking', package='pyterrier_colbert')
-ranking = importlib.import_module('.' + 'indexing', package='pyterrier_colbert') 
+#import importlib
+#ranking = importlib.import_module('.' + 'indexing', package='pyterrier_colbert') 
+#ranking = importlib.import_module('.' + 'ranking', package='pyterrier_colbert')
 
 
 import torch
