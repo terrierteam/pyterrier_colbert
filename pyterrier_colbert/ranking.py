@@ -489,9 +489,9 @@ class ColBERTFactory():
         ax1=fig.add_subplot(gs[0])
         ax2=fig.add_subplot(gs[1])
         
-        ax1.matshow(interaction, cmap=plt.cm.Blues)
-        qtokens = self.inference.query_tokenizer.tok.convert_ids_to_tokens(idsQ[0])
-        dtokens = self.inference.query_tokenizer.tok.convert_ids_to_tokens(idsD[0])
+        ax2.matshow(interaction, cmap=plt.cm.Blues)
+        qtokens = self.args.inference.query_tokenizer.tok.convert_ids_to_tokens(idsQ[0])
+        dtokens = self.args.inference.query_tokenizer.tok.convert_ids_to_tokens(idsD[0])
         qtokens = [tokenmap[t] if t in tokenmap else t for t in qtokens]
         dtokens = [tokenmap[t] if t in tokenmap else t for t in dtokens]
 
