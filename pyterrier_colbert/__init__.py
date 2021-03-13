@@ -1,3 +1,9 @@
+
+import importlib
+ranking = importlib.import_module('.' + 'ranking', package='pyterrier_colbert')
+ranking = importlib.import_module('.' + 'indexing', package='pyterrier_colbert') 
+
+
 import torch
 from colbert.utils.utils import print_message
 from collections import OrderedDict, defaultdict
