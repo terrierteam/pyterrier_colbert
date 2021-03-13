@@ -341,7 +341,8 @@ class ColBERTFactory():
                 Q_f = Q[0:1, :, :]
                 all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=verbose)
                 for passage_ids in all_pids:
-                    print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
+                    if verbose:
+                        print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
                         rtr.append([qid, row.query, pid, ids[0], Q[0, :, :].cpu()])
             return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs']))
@@ -356,7 +357,8 @@ class ColBERTFactory():
                 Q_f = torch.unsqueeze(embs, 0)
                 all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=verbose)
                 for passage_ids in all_pids:
-                    print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
+                    if verbose:
+                        print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
                         rtr.append([qid, row.query, pid, row.query_toks, row.query_embs])
             return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])) 
