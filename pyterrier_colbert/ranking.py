@@ -303,6 +303,8 @@ class ColBERTFactory():
             return self.faiss_index
         faiss_index_path = get_faiss_index_name(self.args)
         faiss_index_path = os.path.join(self.index_path, faiss_index_path)
+        if not os.path.exists(faiss_index_path):
+            raise ValueError("No faiss index found at %s" % faiss_index_path)
         self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range)
         return self.faiss_index
 
