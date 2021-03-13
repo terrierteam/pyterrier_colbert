@@ -16,8 +16,6 @@ colbert.evaluation.loaders.load_model.__globals__['load_checkpoint'] = load_chec
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.slow import slow_rerank
 from colbert.indexing.loaders import get_parts, load_doclens
-from colbert.indexing.faiss import get_faiss_index_name
-from colbert.ranking.faiss_index import FaissIndex
 import colbert.modeling.colbert
 from collections import defaultdict
 import numpy as np
@@ -233,6 +231,11 @@ class ColBERTFactory():
             else:
                 self.docid_as_docno = True
 
+        try:
+            import faiss
+        except:
+            warn("Faiss not installed. You cannot do retrieval")
+
         if not gpu:
             warn("Gpu disabled, YMMV")
             import colbert.parameters
@@ -309,6 +312,8 @@ class ColBERTFactory():
         """
         Returns an instance of the Colbert FaissIndex class, which provides nearest neighbour information
         """
+        from colbert.indexing.faiss import get_faiss_index_name
+        from colbert.ranking.faiss_index import FaissIndex
         if self.faiss_index is not None:
             return self.faiss_index
         faiss_index_path = get_faiss_index_name(self.args)
