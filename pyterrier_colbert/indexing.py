@@ -14,7 +14,7 @@ import math
 from colbert.utils.parser import Arguments
 import colbert.utils.distributed as distributed
 
-from colbert.utils.utils import print_message, create_directory
+from colbert.utils.utils import create_directory
 
 import os
 import time
@@ -28,6 +28,10 @@ import queue
 
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.loaders import load_colbert
+from . import load_checkpoint
+# monkeypatch to use our downloading version
+import colbert.evaluation.loaders
+colbert.evaluation.loaders.load_checkpoint = load_checkpoint
 from colbert.utils.utils import print_message
 import pickle
 from colbert.indexing.index_manager import IndexManager

@@ -1,0 +1,33 @@
+import torch
+from colbert.utils.utils import print_message
+from collections import OrderedDict, defaultdict
+
+def load_checkpoint(path, model, optimizer=None, do_print=True):
+    if do_print:
+        print_message("#> Loading checkpoint", path)
+
+    if path.startswith("http:") or path.startswith("https:"):
+        checkpoint = torch.hub.load_state_dict_from_url(path)
+    else:
+        checkpoint = torch.load(path, map_location='cpu')
+
+    state_dict = checkpoint['model_state_dict']
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        name = k
+        if k[:7] == 'module.':
+            name = k[7:]
+        new_state_dict[name] = v
+
+    checkpoint['model_state_dict'] = new_state_dict
+
+    model.load_state_dict(checkpoint['model_state_dict'])
+
+    if optimizer:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    if do_print:
+        print_message("#> checkpoint['epoch'] =", checkpoint['epoch'])
+        print_message("#> checkpoint['batch'] =", checkpoint['batch'])
+
+    return checkpoint

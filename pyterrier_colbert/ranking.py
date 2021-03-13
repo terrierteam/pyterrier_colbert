@@ -8,6 +8,10 @@ from pyterrier.transformer import TransformerBase
 from typing import Union, Tuple
 import random
 from colbert.evaluation.load_model import load_model
+from . import load_checkpoint
+# monkeypatch to use our downloading version
+import colbert.evaluation.loaders
+colbert.evaluation.loaders.load_checkpoint = load_checkpoint
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.slow import slow_rerank
 from colbert.indexing.loaders import get_parts, load_doclens
@@ -366,7 +370,7 @@ class ColBERTFactory():
                     ranking = slow_rerank(self.args, query, group["docno"].values, group[doc_attr].values.tolist())
                     for rank, (score, pid, passage) in enumerate(ranking):
                             rtr.append([qid, query, pid, score, rank])          
-            return pd.DataFrame(rtr, columns=["qid", "query", "docid", "score", "rank"])
+            return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
 
         return pt.apply.generic(_text_scorer)
 
@@ -435,3 +439,59 @@ class ColBERTFactory():
         #input: qid, query, 
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer()
+
+    def explain_doc(self, query : str, docno : str):
+        """
+        Provides a diagram explaining the interaction between a query and a given docno
+        """
+        pid = self.docno2docid[docno]
+        embsD = self.get_embedding(pid)
+        raise NotImplementedError()
+        return self._explain(query, embsD, idsD)
+
+    def explain_text(self, query : str, document : str):
+        """
+        Provides a diagram explaining the interaction between a query and the text of a document
+        """
+        embsD, idsD = self.inference.docFromText([document], with_ids=True)
+        return self._explain(query, embsD, idsD)
+    
+    def _explain(self, query, embsD, idsD):
+        embsQ, idsQ, masksQ = self.inference.queryFromText([query], with_ids=True)
+
+        interaction = (embsQ[0] @ embsD[0].T).cpu().numpy().T
+        
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+        tokenmap = {"[unused1]" : "[D]", "[unused0]" : "[Q]"}
+
+        fig = plt.figure(figsize=(4, 12)) 
+        gs = GridSpec(2, 1, height_ratios=[1, 20]) 
+
+        ax1=fig.add_subplot(gs[0])
+        ax2=fig.add_subplot(gs[1])
+        
+        ax1.matshow(interaction, cmap=plt.cm.Blues)
+        qtokens = self.inference.query_tokenizer.tok.convert_ids_to_tokens(idsQ[0])
+        dtokens = self.inference.query_tokenizer.tok.convert_ids_to_tokens(idsD[0])
+        qtokens = [tokenmap[t] if t in tokenmap else t for t in qtokens]
+        dtokens = [tokenmap[t] if t in tokenmap else t for t in dtokens]
+
+        ax2.set_xticks(range(32), minor=False)
+        ax2.set_xticklabels(qtokens, rotation=90)
+        ax2.set_yticks(range(len(idsD[0])))
+        ax2.set_yticklabels(dtokens)
+
+        contributions=[]
+        for i in range(32):
+            maxpos = np.argmax(interaction[:,i])
+            plt.text(i-0.25, maxpos+0.1, "X", fontsize=5)
+            contributions.append(interaction[maxpos,i])
+
+        ax1.bar([0.5 + i for i in range(0,32)], contributions)
+        ax1.set_xticklabels([])
+        fig.tight_layout()
+        fig.show()
+
