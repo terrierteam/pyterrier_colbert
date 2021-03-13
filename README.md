@@ -40,6 +40,12 @@ pt.Experiment(
 )
 ```
 
+## Installation
+
+ColBERT requires FAISS, namely the faiss-gpu package, to be installed. `pip install faiss-gpu` does **NOT** work.
+FAISS [recommends using Anaconda](https://github.com/facebookresearch/faiss/blob/master/INSTALL.md) to install faiss-gpu.
+On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.3.
+
 
 ## References
 
