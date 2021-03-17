@@ -5,6 +5,7 @@ from pyterrier.transformer import TransformerBase
 from colbert.indexing.faiss import index_faiss
 from colbert.indexing.loaders import load_doclens
 from pyterrier.transformer import TransformerBase
+from pyterrier.transformer import IterDictIndexerBase
 import os
 import ujson
 import random
@@ -247,7 +248,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
         return batch
 
 
-class ColBERTIndexer():
+class ColBERTIndexer(IterDictIndexerBase):
     def __init__(self, checkpoint, index_root, index_name, chunksize):
         args = Object()
         args.similarity = 'cosine'
