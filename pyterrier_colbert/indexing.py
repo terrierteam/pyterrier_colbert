@@ -234,7 +234,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
         prepend_title = self.prepend_title
 
         for line_idx, line in zip(range(offset, endpos), lines):
-            pid = line["docid"]
+#            pid = line["docid"]
             passage = line["text"]
             if prepend_title:
                 title = line["title"]
@@ -243,7 +243,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
             batch.append(passage)
 
-            assert pid == 'id' or int(pid) == line_idx
+#            assert pid == 'id' or int(pid) == line_idx
 
         return batch
 
@@ -285,7 +285,7 @@ class ColBERTIndexer(IterDictIndexerBase):
             memtype
         )
 
-    def index(self, iterator, num_docs=None):
+    def index(self, iterator, prepend_title=False, num_docs=None):
         from timeit import default_timer as timer
         starttime = timer()
         maxdocs = 100
@@ -304,7 +304,7 @@ class ColBERTIndexer(IterDictIndexerBase):
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        ceg = CollectionEncoder_Generator(self.args,0,1)
+        ceg = CollectionEncoder_Generator(self.args, 0, 1, prepend_title)
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
         ceg.encode()
