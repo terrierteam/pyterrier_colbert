@@ -253,7 +253,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
 
 class ColBERTIndexer(IterDictIndexerBase):
-    def __init__(self, checkpoint, index_root, index_name, chunksize):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
@@ -277,6 +277,9 @@ class ColBERTIndexer(IterDictIndexerBase):
         self.args = args
         self.args.sample = None
         self.args.slices = 1
+        
+        self.prepend_title = prepend_title
+        self.num_docs = num_docs
 
         assert self.args.slices >= 1
         assert self.args.sample is None or (0.0 < self.args.sample <1.0), self.args.sample
@@ -290,7 +293,7 @@ class ColBERTIndexer(IterDictIndexerBase):
             memtype
         )
 
-    def index(self, iterator, prepend_title=False, num_docs=None):
+    def index(self, iterator):
         from timeit import default_timer as timer
         starttime = timer()
         maxdocs = 100
@@ -301,17 +304,15 @@ class ColBERTIndexer(IterDictIndexerBase):
             import pyterrier as pt
             nonlocal docnos
             nonlocal docid
-            if num_docs is not None:
-                iterator = pt.tqdm(iterator, total=num_docs, desc="encoding", unit="d")
+            if self.num_docs is not None:
+                iterator = pt.tqdm(iterator, total=self.num_docs, desc="encoding", unit="d")
             for l in iterator:
                 l["docid"] = docid
                 docnos.append(l['docno'])
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        self.args.prepend_title = prepend_title
-        print("index ", self.args.prepend_title)
-        ceg = CollectionEncoder_Generator(prepend_title, self.args, 0, 1)
+        ceg = CollectionEncoder_Generator(self.prepend_title, self.args, 0, 1)
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
         ceg.encode()
