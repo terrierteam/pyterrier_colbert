@@ -219,10 +219,10 @@ class Object(object):
 
 class CollectionEncoder_Generator(CollectionEncoder):
 
-    def __init__(self, *args, prepend_title=False):
+    def __init__(self, *args):#, prepend_title=False):
         super().__init__(*args)
-        self.prepend_title = prepend_title
-
+#        self.prepend_title = prepend_title
+        self.prepend_title = True
 
     def _initialize_iterator(self):
       return self.args.generator
