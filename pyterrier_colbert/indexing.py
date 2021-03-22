@@ -222,7 +222,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
     def __init__(self, *args):#, prepend_title=False):
         super().__init__(*args)
 #        self.prepend_title = prepend_title
-        self.prepend_title = True
+        self.prepend_title = args.prepend_title
 
     def _initialize_iterator(self):
       return self.args.generator
@@ -304,7 +304,8 @@ class ColBERTIndexer(IterDictIndexerBase):
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        ceg = CollectionEncoder_Generator(self.args, 0, 1, prepend_title)
+        self.args.prepend_title = prepend_title
+        ceg = CollectionEncoder_Generator(self.args, 0, 1)
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
         ceg.encode()
