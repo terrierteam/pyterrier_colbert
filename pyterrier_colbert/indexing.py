@@ -238,6 +238,11 @@ class CollectionEncoder_Generator(CollectionEncoder):
             if prepend_title:
                 title = line["title"]
                 passage = title + ' | ' + passage
+                
+            if len(passage) <= 0:
+                print(line)
+                print(passage)
+                
             assert len(passage) >= 1
 
             batch.append(passage)
