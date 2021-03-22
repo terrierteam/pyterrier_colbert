@@ -269,6 +269,7 @@ class ColBERTIndexer(IterDictIndexerBase):
         args.nranks, args.distributed = distributed.init(args.rank)
         self.saver_queue = queue.Queue(maxsize=3)
         args.partitions = 100
+        args.prepend_title = False
         self.args = args
         self.args.sample = None
         self.args.slices = 1
