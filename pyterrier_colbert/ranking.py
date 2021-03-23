@@ -272,7 +272,7 @@ class ColBERTFactory():
             self.index_path, 
             self.args, 
             self.args.inference, 
-            verbose=True, 
+            verbose=False, 
             memtype=self.memtype)
         return self.rrm
         
