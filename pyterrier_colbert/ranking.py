@@ -515,6 +515,6 @@ class ColBERTFactory():
         ax1.bar([0.5 + i for i in range(0,32)], contributions)
         ax1.set_xticklabels([])
         fig.tight_layout()
-        fig.subplots_adjust(hspace=-0.37)
+        #fig.subplots_adjust(hspace=-0.37)
         fig.show()
 
