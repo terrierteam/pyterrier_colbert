@@ -504,6 +504,7 @@ class ColBERTFactory():
         ax2.set_xticklabels(qtokens, rotation=90)
         ax2.set_yticks(range(len(idsD[0])))
         ax2.set_yticklabels(dtokens)
+        ax2.set_anchor("N")
 
         contributions=[]
         for i in range(32):
