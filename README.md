@@ -18,7 +18,7 @@ An end-to-end ColBERT dense retrieval pipeline can be formulated as follows:
 ```python
 from pyterrier_colbert.ranking import ColBERTFactory
 pytcolbert = ColBERTFactory("/path/to/checkpoint.dnn", "/path/to/index", "index_name")
-dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer()
+dense_e2e = pytcolbert.end_to_end()
 ```
 
 A ColBERT re-ranker of BM25 can be formulated as follows (you will need to have the [text saved in your Terrier index](https://pyterrier.readthedocs.io/en/latest/text.html)):
