@@ -32,10 +32,10 @@ Thereafter it is possible to conduct a side-by-side comparison of effectiveness:
 
 ```python
 pt.Experiment(
-    [bm25, sparse_colbert, dense_e2e]
+    [bm25, sparse_colbert, dense_e2e],
     dataset.get_topics(),
     dataset.get_qrels(),
-    measures=["map", "ndcg_cut_10"],
+    eval_metrics=["map", "ndcg_cut_10"],
     names=["BM25", "BM25 >> ColBERT", "Dense ColBERT"]
 )
 ```
