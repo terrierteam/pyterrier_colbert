@@ -198,7 +198,7 @@ class ColBERTFactory():
             colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], 
             index_root : str, 
             index_name : str,
-            faiss_partitions=100,
+            faiss_partitions=None,
             memtype = "mem",
             gpu=True):
         
