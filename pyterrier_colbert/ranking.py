@@ -337,9 +337,9 @@ class ColBERTFactory():
         
         def _single_retrieve(queries_df):
             rtr = []
-            iter = queries_df.itertuples()
-            iter = tqdm(iter, unit="q") if verbose else iter
-            for row in iter:
+#            iter = queries_df.itertuples()
+#            iter = tqdm(iter, unit="q") if verbose else iter
+            for row in tqdm(queries_df.itertuples(), unit="q"):
                 qid = row.qid
                 with torch.no_grad():
                     Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
