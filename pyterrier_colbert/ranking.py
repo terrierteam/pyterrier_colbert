@@ -452,14 +452,14 @@ class ColBERTFactory():
             return pt.apply.by_query(rrm_scorer_query_embs) 
         return pt.apply.by_query(rrm_scorer) 
 
-    def end_to_end(self) -> TransformerBase:
+    def end_to_end(self, verbose=False) -> TransformerBase:
         """
         Returns a transformer composition that uses a ColBERT FAISS index to retrieve documents, followed by a ColBERT index 
         to perform accurate scoring of the retrieved documents. Equivalent to `colbertfactory.set_retrieve() >> colbertfactory.index_scorer()`.
         """
         #input: qid, query, 
         #output: qid, query, docno, score
-        return self.set_retrieve() >> self.index_scorer()
+        return self.set_retrieve(verbose) >> self.index_scorer()
 
     def explain_doc(self, query : str, docno : str):
         """
