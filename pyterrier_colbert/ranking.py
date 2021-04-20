@@ -321,6 +321,8 @@ class ColBERTFactory():
         if not os.path.exists(faiss_index_path):
             raise ValueError("No faiss index found at %s" % faiss_index_path)
         self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range)
+        import faiss
+        self.faiss_index.faiss_index = faiss.index_cpu_to_all_gpus(self.faiss_index.faiss_index)
         return self.faiss_index
 
     def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False) -> TransformerBase:
