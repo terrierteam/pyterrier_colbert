@@ -334,6 +334,22 @@ class ColBERTFactory():
         
         assert not batch
         faiss_index = self._faiss_index()
+
+        def _nic_single_retrieve(queries_df):
+            rtr = []
+            iter = queries_df.itertuples()
+            iter = tqdm(iter, unit="q")# if verbose else iter
+            for row in iter:
+                qid = row.qid
+                query = row.query
+                with torch.no_grad():
+                    Q, ids, masks = self.args.inference.queryFromText([query], bsize=512, with_ids=True)
+                Q_f = Q[0:1, :, :]
+                all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=verbose)
+                for passage_ids in all_pids:
+                    for pid in passage_ids:
+                        rtr.append([qid, query, pid])
+            return pd.DataFrame(rtr, columns=["qid","query",'docid'])        
         
         def _single_retrieve(queries_df):
             rtr = []
@@ -353,7 +369,8 @@ class ColBERTFactory():
                     for pid in passage_ids:
 #                        rtr.append([qid, query, pid, ids[0], Q[0, :, :].cpu()])
                         rtr.append([qid, query, pid, ids[0], Q_cpu])
-            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs']))
+#            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs']))
+            return pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])
 
         def _single_retrieve_qembs(queries_df):
             rtr = []
@@ -369,9 +386,10 @@ class ColBERTFactory():
                         print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
                         rtr.append([qid, row.query, pid, row.query_toks, row.query_embs])
-            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])) 
+#            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])) 
+            return pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])
         
-        return pt.apply.generic(_single_retrieve_qembs if query_encoded else _single_retrieve)
+        return pt.apply.generic(_single_retrieve_qembs if query_encoded else _nic_single_retrieve)
 
     def text_scorer(self, query_encoded=False, doc_attr="text", verbose=False) -> TransformerBase:
         """
@@ -452,8 +470,8 @@ class ColBERTFactory():
             return qid_group
 
         if query_encoded:
-            return pt.apply.by_query(rrm_scorer_query_embs) 
-        return pt.apply.by_query(rrm_scorer) 
+            return self._add_docnos(pt.apply.by_query(rrm_scorer_query_embs))
+        return self._add_docnos(pt.apply.by_query(rrm_scorer))
 
     def end_to_end(self) -> TransformerBase:
         """
