@@ -452,8 +452,8 @@ class ColBERTFactory():
             scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids)
             qid_group["score"] = scores
             if add_ranks:
-                return pt.model.add_ranks(qid_group)
-            return qid_group
+                qid_group = pt.model.add_ranks(qid_group)
+            return self._add_docnos(qid_group)
 
         def rrm_scorer_query_embs(qid_group):
             qid_group = qid_group.copy()
@@ -468,12 +468,12 @@ class ColBERTFactory():
             scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights)
             qid_group["score"] = scores
             if add_ranks:
-                return pt.model.add_ranks(qid_group)
-            return qid_group
+                qid_group = pt.model.add_ranks(qid_group)
+            return self._add_docnos(qid_group)
 
         if query_encoded:
-            return self._add_docnos(pt.apply.by_query(rrm_scorer_query_embs))
-        return self._add_docnos(pt.apply.by_query(rrm_scorer))
+            return pt.apply.by_query(rrm_scorer_query_embs)
+        return pt.apply.by_query(rrm_scorer)
 
     def end_to_end(self) -> TransformerBase:
         """
