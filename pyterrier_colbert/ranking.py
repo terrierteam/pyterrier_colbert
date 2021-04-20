@@ -338,7 +338,7 @@ class ColBERTFactory():
         def _single_retrieve(queries_df):
             rtr = []
             iter = queries_df.itertuples()
-            iter = tqdm(iter, unit="q") if verbose else iter
+            iter = tqdm(iter, unit="q")# if verbose else iter
             for row in iter:
                 qid = row.qid
                 with torch.no_grad():
