@@ -341,21 +341,24 @@ class ColBERTFactory():
             iter = tqdm(iter, unit="q")# if verbose else iter
             for row in iter:
                 qid = row.qid
+                query = row.query
                 with torch.no_grad():
-                    Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
+                    Q, ids, masks = self.args.inference.queryFromText([query], bsize=512, with_ids=True)
                 Q_f = Q[0:1, :, :]
                 all_pids = faiss_index.retrieve(faiss_depth, Q_f, verbose=verbose)
+                Q_cpu = Q[0, :, :].cpu()
                 for passage_ids in all_pids:
                     if verbose:
                         print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
-                        rtr.append([qid, row.query, pid, ids[0], Q[0, :, :].cpu()])
+#                        rtr.append([qid, query, pid, ids[0], Q[0, :, :].cpu()])
+                        rtr.append([qid, query, pid, ids[0], Q_cpu])
             return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs']))
 
         def _single_retrieve_qembs(queries_df):
             rtr = []
             iter = queries_df.itertuples()
-            iter = tqdm(iter, unit="q") if verbose else iter
+            iter = tqdm(iter, unit="q")# if verbose else iter
             for row in iter:
                 qid = row.qid
                 embs = row.query_embs
