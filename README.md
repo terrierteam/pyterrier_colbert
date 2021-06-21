@@ -2,7 +2,6 @@
 
 Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/tree/v0.2), including for dense indexing and retrieval. This also includes the implementation of ColBERT PRF. 
 
-
 ## Usage
 
 Given an existing ColBERT checkpoint, an end-to-end ColBERT dense retrieval index can be created as follows:
