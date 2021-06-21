@@ -2,6 +2,7 @@
 
 Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/tree/v0.2), including for dense indexing and retrieval.
 
+COMING SOON: This repo will soon have the implementation of our pseudo-relevance feedback technique, ColBERT PRF, as defined in our upcoming ICTIR 2021 paper.
 
 ## Usage
 
@@ -71,3 +72,4 @@ On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.
  - Craig Macdonald, University of Glasgow
  - Nicola Tonellotto, University of Pisa
  - Sanjana Karumuri, University of Glasgow
+ - Xiao Wang, University of Glasgow
