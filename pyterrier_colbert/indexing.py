@@ -39,6 +39,7 @@ import pickle
 from colbert.indexing.index_manager import IndexManager
 from warnings import warn
 
+DEBUG=False
 
 class CollectionEncoder():
     def __init__(self, args, process_idx, num_processes):
@@ -219,7 +220,7 @@ class Object(object):
 
 class CollectionEncoder_Generator(CollectionEncoder):
 
-    def __init__(self, prepend_title, *args):#, prepend_title=False):
+    def __init__(self, *args, prepend_title=False):
         super().__init__(*args)
         self.prepend_title = prepend_title
 
@@ -233,27 +234,21 @@ class CollectionEncoder_Generator(CollectionEncoder):
         prepend_title = self.prepend_title
 
         for line_idx, line in zip(range(offset, endpos), lines):
-#            pid = line["docid"]
+            pid = line["docid"]
             passage = line["text"]
             if prepend_title:
                 title = line["title"]
                 passage = title + ' | ' + passage
                 
-            if len(passage) <= 0:
-                print(line)
-                print(passage)
-                
             assert len(passage) >= 1
 
             batch.append(passage)
-
-#            assert pid == 'id' or int(pid) == line_idx
 
         return batch
 
 
 class ColBERTIndexer(IterDictIndexerBase):
-    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
@@ -277,7 +272,7 @@ class ColBERTIndexer(IterDictIndexerBase):
         self.args = args
         self.args.sample = None
         self.args.slices = 1
-        
+        self.ids = ids
         self.prepend_title = prepend_title
         self.num_docs = num_docs
 
@@ -312,7 +307,8 @@ class ColBERTIndexer(IterDictIndexerBase):
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        ceg = CollectionEncoder_Generator(self.prepend_title, self.args, 0, 1)
+        ceg = CollectionEncoderIds(self.args,0,1) if self.ids else CollectionEncoder_Generator(self.args,0,1)
+
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
         ceg.encode()
@@ -337,3 +333,78 @@ class ColBERTIndexer(IterDictIndexerBase):
         endtime = timer()
         print("#> Indexing complete, Time elapsed %0.2f seconds" % (endtime - starttime))
         
+        
+class CollectionEncoderIds(CollectionEncoder_Generator):
+    def _encode_batch(self, batch_idx, batch):
+        with torch.no_grad():
+            embs, ids = self.inference.docFromText(batch, bsize=self.args.bsize, keep_dims=False, with_ids=True)
+            assert type(embs) is list
+            assert len(embs) == len(batch)
+
+            local_doclens = [d.size(0) for d in embs]
+
+            # check that tids dont have PAD tokens, and match the lengths of the documents
+            if DEBUG:
+                for idx, (doclen, tids) in enumerate(zip(local_doclens, ids)):
+                    assert len(tids) == doclen, (idx, len(tids), doclen)
+                
+            embs = torch.cat(embs)
+            ids = torch.cat(ids)
+        return embs, local_doclens, ids
+    
+    def _save_batch(self, batch_idx, embs, offset, doclens, ids):
+        start_time = time.time()
+
+        output_path = os.path.join(self.args.index_path, "{}.pt".format(batch_idx))
+        output_path_ids = os.path.join(self.args.index_path, "{}.tokenids".format(batch_idx))
+        output_sample_path = os.path.join(self.args.index_path, "{}.sample".format(batch_idx))
+        doclens_path = os.path.join(self.args.index_path, 'doclens.{}.json'.format(batch_idx))
+
+        # Save the embeddings.
+        self.indexmgr.save(embs, output_path)
+        self.indexmgr.save(ids, output_path_ids)
+        self.indexmgr.save(embs[torch.randint(0, high=embs.size(0), size=(embs.size(0) // 20,))], output_sample_path)
+
+        # Save the doclens.
+        with open(doclens_path, 'w') as output_doclens:
+            ujson.dump(doclens, output_doclens)
+
+        throughput = compute_throughput(len(doclens), start_time, time.time())
+        self.print_main("#> Saved batch #{} to {} \t\t".format(batch_idx, output_path),
+                        "Saving Throughput =", throughput, "passages per minute.\n")
+
+    def encode(self):
+        self.saver_queue = queue.Queue(maxsize=3)
+        thread = threading.Thread(target=self._saver_thread)
+        thread.start()
+
+        t0 = time.time()
+        local_docs_processed = 0
+        for batch_idx, (offset, lines, owner) in enumerate(self._batch_passages(self.iterator)):
+            if owner != self.process_idx:
+                continue
+
+            t1 = time.time()
+            batch = self._preprocess_batch(offset, lines)
+            embs, doclens, ids = self._encode_batch(batch_idx, batch)
+            if DEBUG:
+                assert sum(doclens) == len(ids), (batch_idx, len(doclens), len(ids))
+
+            t2 = time.time()
+            self.saver_queue.put((batch_idx, embs, offset, doclens, ids))
+
+            t3 = time.time()
+            local_docs_processed += len(lines)
+            overall_throughput = compute_throughput(local_docs_processed, t0, t3)
+            this_encoding_throughput = compute_throughput(len(lines), t1, t2)
+            this_saving_throughput = compute_throughput(len(lines), t2, t3)
+
+            self.print(f'#> Completed batch #{batch_idx} (starting at passage #{offset}) \t\t'
+                    f'Passages/min: {overall_throughput} (overall), ',
+                    f'{this_encoding_throughput} (this encoding), ',
+                    f'{this_saving_throughput} (this saving)')
+
+        self.saver_queue.put(None)
+
+        self.print("#> Joining saver thread.")
+        thread.join()
