@@ -500,21 +500,21 @@ class ColBERTFactory():
         In Proceedings of ICTIR 2021.
         
         """
-        dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer()
+        dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer(query_encoded=True, add_ranks=True)
         if reranker:
-            pipe = (
+            prf_pipe = (
                 (dense_e2e % fb_docs)  
                 >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, exp_terms=fb_embs, idf_weight=True, beta=beta)
                 >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) %1000)
             )
         else:
-            pipe = (
+            prf_pipe = (
                 (dense_e2e %fb_docs)  
                 >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, exp_terms=fb_embs, idf_weight=True, beta=beta)
                 >> pytcolbert.set_retrieve(query_encoded=True)
                 >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) % 1000)
             )
-        return pipe
+        return prf_pipe
 
     def explain_doc(self, query : str, docno : str):
         """
