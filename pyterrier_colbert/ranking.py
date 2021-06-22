@@ -485,7 +485,7 @@ class ColBERTFactory():
 
     def prf(pytcolbert, reranker, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
         """
-        Returns a pipeline for ColBERT PRF, either as a ranker, or a re-ranker.
+        Returns a pipeline for ColBERT PRF, either as a ranker, or a re-ranker. Final ranking is limited to 1000 docs.
     
         Parameters:
          - reranker(bool): Whether to rerank the initial documents, or to perform a new set retrieve to gather new documents.
@@ -503,14 +503,14 @@ class ColBERTFactory():
         dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer(query_encoded=True, add_ranks=True)
         if reranker:
             prf_pipe = (
-                (dense_e2e % fb_docs)  
-                >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, exp_terms=fb_embs, idf_weight=True, beta=beta)
+                dense_e2e  
+                >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, fb_embs=fb_embs, beta=beta, return_docs=True)
                 >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) %1000)
             )
         else:
             prf_pipe = (
-                (dense_e2e %fb_docs)  
-                >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, exp_terms=fb_embs, idf_weight=True, beta=beta)
+                dense_e2e  
+                >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, fb_embs=fb_embs, beta=beta, return_docs=False)
                 >> pytcolbert.set_retrieve(query_encoded=True)
                 >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) % 1000)
             )
@@ -577,12 +577,11 @@ from pyterrier.transformer import TransformerBase
 import pandas as pd
 
 class ColbertPRF(TransformerBase):
-    def __init__(self, pytcfactory, k, exp_terms, num_docs, beta=1, r = 42, idf_weight=False, return_docs = False, fb_docs=10,  *args, **kwargs):
+    def __init__(self, pytcfactory, k, fb_embs, num_docs, beta=1, r = 42, return_docs = False, fb_docs=10,  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.k = k
-        self.exp_terms = exp_terms
+        self.fb_embs = fb_embs
         self.beta = beta
-        self.idf_weight = idf_weight
         self.return_docs = return_docs
         self.fb_docs = fb_docs
         self.pytcfactory = pytcfactory
@@ -596,32 +595,45 @@ class ColbertPRF(TransformerBase):
             df = self.fnt.getDF_by_id(tid)
             idfscore = np.log((1.0+num_docs)/(df+1))
             self.idfdict[tid] = idfscore
-        assert self.k > self.exp_terms ,"exp_terms should be smaller than number of clusters"
+        assert self.k > self.fb_embs ,"fb_embs should be smaller than number of clusters"
+        self._init_clustering()
+
+    def _init_clustering(self):
+        import sklearn
+        from packaging.version import Version
+        from warnings import warn
+        if Version(sklearn.__version__) > Version('0.23.2'):
+            warn("You have sklearn version %s - sklearn KMeans clustering changed in 0.24, so performance may differ from those reported in the ICTIR 2021 paper."
+            "See also https://github.com/scikit-learn/scikit-learn/issues/19990" % str(sklearn.__version__))
+
+    def _get_centroids(self, prf_embs):
+        from sklearn.cluster import KMeans
+        kmn = KMeans(self.k, random_state=self.r)
+        kmn.fit(prf_embs)
+        return kmn.cluster_centers_
         
     def transform_query(self, topic_and_res : pd.DataFrame) -> pd.DataFrame:
         from sklearn.cluster import KMeans
         topic_and_res = topic_and_res.sort_values('rank')
         prf_embs = torch.cat([self.pytcfactory.rrm.get_embedding(docid) for docid in topic_and_res.head(self.fb_docs).docid.values])
-        kmn = KMeans(self.k, random_state=self.r)
-        kmn.fit(prf_embs)
+        centroids = self._get_centroids(prf_embs)
         
         emb_and_score = []
         for cluster in range(self.k):
-            centroid = np.float32( kmn.cluster_centers_[cluster] )
+            centroid = np.float32( centroids[cluster] )
             tok2freq = self.nn_term.get_nearest_tokens_for_emb(self.fnt, centroid)
             if len(tok2freq) == 0:
                 continue
             most_likely_tok = max(tok2freq, key=tok2freq.get)
             tid = self.fnt.inference.query_tokenizer.tok.convert_tokens_to_ids(most_likely_tok)      
-            if self.idf_weight:
-                emb_and_score.append( (centroid, most_likely_tok, tid, self.idfdict[tid]) ) 
+            emb_and_score.append( (centroid, most_likely_tok, tid, self.idfdict[tid]) ) 
         
         sorted_by_second = sorted(emb_and_score, key=lambda tup: -tup[3])
         
         toks=[]
         scores=[]
         exp_embds = []
-        for i in range(min(self.exp_terms, len(sorted_by_second))):
+        for i in range(min(self.fb_embs, len(sorted_by_second))):
             emb, tok, tid, score = sorted_by_second[i]
             toks.append(tok)
             scores.append(score)
@@ -632,16 +644,10 @@ class ColbertPRF(TransformerBase):
             first_row.query_embs, 
             torch.Tensor(exp_embds)])
         
-        if self.idf_weight:
-            weights = torch.cat([ 
-                torch.ones(len(first_row.query_embs)),
-                self.beta * torch.Tensor(scores)]
-            )
-        else:
-            weights = torch.cat([ 
-                torch.ones(len(first_row.query_embs)),
-                torch.full(self.exp_terms, self.beta)]
-            )
+        weights = torch.cat([ 
+            torch.ones(len(first_row.query_embs)),
+            self.beta * torch.Tensor(scores)]
+        )
         
         rtr = pd.DataFrame([
             [first_row.qid, 
@@ -656,12 +662,13 @@ class ColbertPRF(TransformerBase):
 
     def transform(self, topics_and_docs : pd.DataFrame) -> pd.DataFrame:
         # validation of the input
-        required = ["qid", "query", "docid", "docno", "query_embs"]
+        required = ["qid", "query", "docno", "query_embs", "rank"]
         for col in required:
             assert col in topics_and_docs.columns
+        
         #restore the docid column if missing
         if "docid" not in topics_and_docs:
-            topics_and_docs["docid"] = topics_and_docs.docid.astype("int").values
+            topics_and_docs = self.pytcfactory.add_docids(topics_and_docs)
         
         rtr = []
         for qid, res in topics_and_docs.groupby("qid"):
