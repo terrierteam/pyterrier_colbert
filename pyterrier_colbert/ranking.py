@@ -363,6 +363,8 @@ class ColBERTFactory():
                         print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
                         rtr.append([qid, query, pid, ids[0], Q_cpu])
+                        
+            #build the DF to return for this query
             rtrDf = pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'] )
             if docnos:
                 rtrDf = self._add_docnos(rtrDf)
@@ -371,7 +373,7 @@ class ColBERTFactory():
         # this is when queries have already been encoded
         def _single_retrieve_qembs(queries_df):
             rtr = []
-            query_weights = "query_weights" in queries_df.column
+            query_weights = "query_weights" in queries_df.columns
             iter = queries_df.itertuples()
             iter = tqdm(iter, unit="q") if verbose else iter
             for row in iter:
@@ -387,7 +389,12 @@ class ColBERTFactory():
                            rtr.append([qid, row.query, pid, row.query_toks, row.query_embs, row.query_weights])
                         else:
                            rtr.append([qid, row.query, pid, row.query_toks, row.query_embs])
-            rtrDf = pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])
+            
+            #build the DF to return for this query
+            cols = ["qid","query",'docid','query_toks','query_embs']
+            if query_weights:
+                cols.append("query_weights")
+            rtrDf = pd.DataFrame(rtr, columns=cols)
             if docnos:
                 rtrDf = self._add_docnos(rtrDf)
             return rtrDf
@@ -629,7 +636,7 @@ class ColbertPRF(TransformerBase):
         emb_and_score = []
         for cluster in range(self.k):
             centroid = np.float32( centroids[cluster] )
-            tok2freq = self.fnt.get_nearest_tokens_for_emb(self.fnt, centroid)
+            tok2freq = self.fnt.get_nearest_tokens_for_emb(centroid)
             if len(tok2freq) == 0:
                 continue
             most_likely_tok = max(tok2freq, key=tok2freq.get)

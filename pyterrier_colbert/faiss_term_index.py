@@ -3,7 +3,11 @@ import time
 import faiss
 import random
 import torch
+<<<<<<< HEAD
 
+=======
+import numpy as np
+>>>>>>> 6940fde3e6fb32bc296f66532162bb690b08449a
 from collections import defaultdict
 from multiprocessing import Pool
 from colbert.modeling.inference import ModelInference
@@ -96,23 +100,21 @@ class FaissNNTerm():
         doclens = np.concatenate([np.array(part) for part in part_doclens])
         self.num_docs = len(doclens)
         if df:
-            print("Computing document frequencies")
             dfs=torch.zeros(vocab_size, dtype=torch.int64)
             offset = 0
-            for doclen in tqdm(doclens, unit="d"):
+            for doclen in tqdm(doclens, unit="d", desc="Computing document frequencies"):
                 tids= torch.unique(self.emb2tid[offset:offset+doclen])
                 dfs[tids] += 1
                 offset += doclen
             self.dfs = dfs
-        print("Done")
         
-    def get_nearest_tokens_for_emb(self, emb, k=10, low_tf=0):
+    def get_nearest_tokens_for_emb(self, emb : np.array, k=10, low_tf=0):
         """
             Displays the most related terms for each query
         """
         from collections import defaultdict
-        import numpy as np
-        scores, ids = self.faiss_index.faiss_index.search(np.array([emb]), k=k)
+        queryEmbs = np.expand_dims(emb, axis=0)
+        scores, ids = self.faiss_index.faiss_index.search(queryEmbs, k=k)
         id2freq = defaultdict(int)
         for id_set in ids:
             for id in id_set:

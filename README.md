@@ -54,6 +54,7 @@ indexer = ColBERTIndexer("/path/to/checkpoint.dnn", "/path/to/index", "index_nam
 
 ## Demos
  - vaswani.ipy - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
+ - colbertprf-msmarco-passages.ipynb - [[Github](colbertprf-msmarco-passages.ipynb)] - demonstrates ColBERT PRF on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
  - colbert_text_and_explain.ipynb - [[Github](colbert_text_and_explain.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/colbert_text_and_explain.ipynb)] - demonstrates using a ColBERT model for scoring text, and for explaining an interaction
 
 ## Resource Requirements
