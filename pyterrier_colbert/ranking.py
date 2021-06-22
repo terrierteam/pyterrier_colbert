@@ -493,7 +493,7 @@ class ColBERTFactory():
          - rerank(bool): Whether to rerank the initial documents, or to perform a new set retrieve to gather new documents.
          - fb_docs(int): Number of passages to use as feedback. Defaults to 3. 
          - k(int): Number of clusters to apply on the embeddings of the top K documents. Defaults to 24.
-         - fb_terms(int): Number of expansion embeddings to add to the query. Defaults to 10.
+         - fb_embs(int): Number of expansion embeddings to add to the query. Defaults to 10.
          - beta(float): Weight of the new embeddings compared to the original emebddings. Defaults to 1.0.
 
         Reference:
