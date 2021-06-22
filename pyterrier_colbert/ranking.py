@@ -593,7 +593,7 @@ class ColbertPRF(TransformerBase):
         self.r = r
         import torch
         import numpy as np
-        num_docs = len(self.fnt.num_docs)
+        num_docs = self.fnt.num_docs
         self.idfdict = {}
         for tid in pt.tqdm(range(self.fnt.inference.query_tokenizer.tok.vocab_size)):
             df = self.fnt.getDF_by_id(tid)
