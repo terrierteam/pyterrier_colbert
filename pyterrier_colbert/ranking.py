@@ -485,7 +485,7 @@ class ColBERTFactory():
 
     def prf(pytcolbert, reranker, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
         """
-        Returns a pipeline for ColBERT PRF, either as a ranker, or a re-ranker. Final ranking is limited to 1000 docs.
+        Returns a pipeline for ColBERT PRF, either as a ranker, or a re-ranker. Final ranking is cutoff at 1000 docs.
     
         Parameters:
          - reranker(bool): Whether to rerank the initial documents, or to perform a new set retrieve to gather new documents.
@@ -500,6 +500,8 @@ class ColBERTFactory():
         In Proceedings of ICTIR 2021.
         
         """
+        #input: qid, query, 
+        #output: qid, query, query_embs, query_toks, query_weights, docno, rank, score
         dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer(query_encoded=True, add_ranks=True)
         if reranker:
             prf_pipe = (

@@ -47,6 +47,11 @@ colbert_prf_rank = pytcolbert.prf(rerank=False)
 colbert_prf_rerank = pytcolbert.prf(rerank=True)
 ```
 
+ColBERT PRF requires the ColBERT index to have aligned token ids. During indexing, use the `ids=True` kwarg for ColBERTIndexer, as follows:
+```
+indexer = ColBERTIndexer("/path/to/checkpoint.dnn", "/path/to/index", "index_name", ids=True)
+```
+
 ## Demos
  - vaswani.ipy - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
  - colbert_text_and_explain.ipynb - [[Github](colbert_text_and_explain.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/colbert_text_and_explain.ipynb)] - demonstrates using a ColBERT model for scoring text, and for explaining an interaction
