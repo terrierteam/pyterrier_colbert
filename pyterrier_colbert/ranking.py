@@ -21,6 +21,7 @@ from collections import defaultdict
 import numpy as np
 import pickle
 from warnings import warn
+from pyterrier_colbert.faiss_term_index import FaissNNTerm
 
 class file_part_mmap:
     def __init__(self, file_path, file_doclens):
@@ -125,7 +126,7 @@ class re_ranker_mmap:
         # identify the tensor we look for
         disk_tensor = self.part_mmap[part_id].get_embedding(local_pid)
         doclen = disk_tensor.shape[0]
-         # only here is there a memory copy from the memory mapped file 
+        # only here is there a memory copy from the memory mapped file 
         target[index, :doclen, :] = disk_tensor
         return target
     
@@ -176,7 +177,6 @@ class re_ranker_mmap:
         Q = torch.unsqueeze(qembs, 0)
         if gpu:
             Q = Q.cuda()
-        #weightE = weightE(Q,E) # calculate the mean_cos score of each expansion term with all query term, the softmax normalised as the weight of the expansion term
         
         if self.verbose:
             pid_iter = tqdm(pids, desc="lookups", unit="d")
@@ -198,7 +198,7 @@ class ColBERTFactory():
             colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], 
             index_root : str, 
             index_name : str,
-            faiss_partitions=None,
+            faiss_partitions=None,#TODO 100-
             memtype = "mem",
             gpu=True):
         
@@ -215,6 +215,8 @@ class ColBERTFactory():
         args.mask_punctuation = False
         args.partitions = faiss_partitions
 
+        self.verbose = False
+        self._faissnn = None
         self.index_root = index_root
         self.index_name = index_name
         if index_root is None or index_name is None:
@@ -235,8 +237,9 @@ class ColBERTFactory():
             import faiss
         except:
             warn("Faiss not installed. You cannot do retrieval")
-
+        self.faiss_index_on_gpu = True
         if not gpu:
+            self.faiss_index_on_gpu = False
             warn("Gpu disabled, YMMV")
             import colbert.parameters
             colbert.parameters.DEVICE = torch.device("cpu")
@@ -272,7 +275,7 @@ class ColBERTFactory():
             self.index_path, 
             self.args, 
             self.args.inference, 
-            verbose=False, 
+            verbose=self.verbose, 
             memtype=self.memtype)
         return self.rrm
         
@@ -280,14 +283,17 @@ class ColBERTFactory():
         """
         Returns an instance of the FaissNNTerm class, which provides statistics about terms
         """
-        from colbert.ranking.faiss_term_index import FaissNNTerm
+        if self._faissnn is not None:
+            return self._faissnn
+        from .faiss_term_index import FaissNNTerm
         #TODO accept self.args.inference as well
-        return FaissNNTerm(
+        self._faissnn = FaissNNTerm(
             self.args.colbert,
             self.index_root,
             self.index_name,
             faiss_index = self._faiss_index(),
             df=df)
+        return self._faissnn
 
     def query_encoder(self, detach=True) -> TransformerBase:
         """
@@ -321,24 +327,29 @@ class ColBERTFactory():
         if not os.path.exists(faiss_index_path):
             raise ValueError("No faiss index found at %s" % faiss_index_path)
         self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range)
+        # ensure the faiss_index is transferred to GPU memory for speed
+        import faiss
+        if self.faiss_index_on_gpu:
+            self.faiss_index.faiss_index = faiss.index_cpu_to_all_gpus(self.faiss_index.faiss_index)
         return self.faiss_index
 
-    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False) -> TransformerBase:
+    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, docnos=False) -> TransformerBase:
         #input: qid, query
         #OR
         #input: qid, query, query_embs, query_toks, query_weights
 
-        #output: qid, query, docno
+        #output: qid, query, docid, [docno]
         #OR
-        #output: qid, query, query_embs, query_toks, query_weights, docno
+        #output: qid, query, query_embs, query_toks, query_weights, docid, [docno]
         
         assert not batch
         faiss_index = self._faiss_index()
         
+        # this is when queries have NOT already been encoded
         def _single_retrieve(queries_df):
             rtr = []
             iter = queries_df.itertuples()
-            iter = tqdm(iter, unit="q")# if verbose else iter
+            iter = tqdm(iter, unit="q")  if verbose else iter
             for row in iter:
                 qid = row.qid
                 query = row.query
@@ -351,14 +362,20 @@ class ColBERTFactory():
                     if verbose:
                         print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
-#                        rtr.append([qid, query, pid, ids[0], Q[0, :, :].cpu()])
                         rtr.append([qid, query, pid, ids[0], Q_cpu])
-            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs']))
+                        
+            #build the DF to return for this query
+            rtrDf = pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'] )
+            if docnos:
+                rtrDf = self._add_docnos(rtrDf)
+            return rtrDf
 
+        # this is when queries have already been encoded
         def _single_retrieve_qembs(queries_df):
             rtr = []
+            query_weights = "query_weights" in queries_df.columns
             iter = queries_df.itertuples()
-            iter = tqdm(iter, unit="q")# if verbose else iter
+            iter = tqdm(iter, unit="q") if verbose else iter
             for row in iter:
                 qid = row.qid
                 embs = row.query_embs
@@ -368,8 +385,19 @@ class ColBERTFactory():
                     if verbose:
                         print("qid %s retrieved docs %d" % (qid, len(passage_ids)))
                     for pid in passage_ids:
-                        rtr.append([qid, row.query, pid, row.query_toks, row.query_embs])
-            return self._add_docnos(pd.DataFrame(rtr, columns=["qid","query",'docid','query_toks','query_embs'])) 
+                        if query_weights:
+                           rtr.append([qid, row.query, pid, row.query_toks, row.query_embs, row.query_weights])
+                        else:
+                           rtr.append([qid, row.query, pid, row.query_toks, row.query_embs])
+            
+            #build the DF to return for this query
+            cols = ["qid","query",'docid','query_toks','query_embs']
+            if query_weights:
+                cols.append("query_weights")
+            rtrDf = pd.DataFrame(rtr, columns=cols)
+            if docnos:
+                rtrDf = self._add_docnos(rtrDf)
+            return rtrDf
         
         return pt.apply.generic(_single_retrieve_qembs if query_encoded else _single_retrieve)
 
@@ -411,13 +439,13 @@ class ColBERTFactory():
             df["docno"] = df["docid"].apply(lambda docid : self.docid2docno[docid])
         return df
 
-    def index_scorer(self, query_encoded=False, add_ranks=False) -> TransformerBase:
+    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True) -> TransformerBase:
         """
         Returns a transformer that uses the ColBERT index to perform scoring of documents to queries 
         """
-        #input: qid, query, docno, [docid] 
+        #input: qid, query, [docno], [docid] 
         #OR
-        #input: qid, query, query_embs, query_toks, query_weights, docno
+        #input: qid, query, query_embs, query_toks, query_weights, docno], [docid] 
 
         #output: qid, query, docno, score
 
@@ -431,6 +459,8 @@ class ColBERTFactory():
             docids = qid_group["docid"].values
             scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids)
             qid_group["score"] = scores
+            if "docno" not in qid_group.columns and add_docnos:
+                qid_group = self._add_docnos(qid_group)
             if add_ranks:
                 return pt.model.add_ranks(qid_group)
             return qid_group
@@ -447,6 +477,8 @@ class ColBERTFactory():
             #TODO batching
             scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights)
             qid_group["score"] = scores
+            if "docno" not in qid_group.columns and add_docnos:
+                qid_group = self._add_docnos(qid_group)
             if add_ranks:
                 return pt.model.add_ranks(qid_group)
             return qid_group
@@ -464,13 +496,48 @@ class ColBERTFactory():
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer()
 
+    def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
+        """
+        Returns a pipeline for ColBERT PRF, either as a ranker, or a re-ranker. Final ranking is cutoff at 1000 docs.
+    
+        Parameters:
+         - rerank(bool): Whether to rerank the initial documents, or to perform a new set retrieve to gather new documents.
+         - fb_docs(int): Number of passages to use as feedback. Defaults to 3. 
+         - k(int): Number of clusters to apply on the embeddings of the top K documents. Defaults to 24.
+         - fb_embs(int): Number of expansion embeddings to add to the query. Defaults to 10.
+         - beta(float): Weight of the new embeddings compared to the original emebddings. Defaults to 1.0.
+
+        Reference:
+        
+        X. Wang, C. Macdonald, N. Tonellotto, I. Ounis. Pseudo-Relevance Feedback for Multiple Representation Dense Retrieval. 
+        In Proceedings of ICTIR 2021.
+        
+        """
+        #input: qid, query, 
+        #output: qid, query, query_embs, query_toks, query_weights, docno, rank, score
+        dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer(query_encoded=True, add_ranks=True)
+        if rerank:
+            prf_pipe = (
+                dense_e2e  
+                >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, fb_embs=fb_embs, beta=beta, return_docs=True)
+                >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) %1000)
+            )
+        else:
+            prf_pipe = (
+                dense_e2e  
+                >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, fb_embs=fb_embs, beta=beta, return_docs=False)
+                >> pytcolbert.set_retrieve(query_encoded=True)
+                >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) % 1000)
+            )
+        return prf_pipe
+
     def explain_doc(self, query : str, docno : str):
         """
         Provides a diagram explaining the interaction between a query and a given docno
         """
+        raise NotImplementedError()
         pid = self.docno2docid[docno]
         embsD = self.get_embedding(pid)
-        raise NotImplementedError()
         return self._explain(query, embsD, idsD)
 
     def explain_text(self, query : str, document : str):
@@ -520,3 +587,110 @@ class ColBERTFactory():
         fig.tight_layout()
         #fig.subplots_adjust(hspace=-0.37)
         fig.show()
+
+from pyterrier.transformer import TransformerBase
+import pandas as pd
+
+class ColbertPRF(TransformerBase):
+    def __init__(self, pytcfactory, k, fb_embs, beta=1, r = 42, return_docs = False, fb_docs=10,  *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.k = k
+        self.fb_embs = fb_embs
+        self.beta = beta
+        self.return_docs = return_docs
+        self.fb_docs = fb_docs
+        self.pytcfactory = pytcfactory
+        self.fnt = pytcfactory.nn_term(df=True)
+        self.r = r
+        import torch
+        import numpy as np
+        num_docs = self.fnt.num_docs
+        self.idfdict = {}
+        for tid in pt.tqdm(range(self.fnt.inference.query_tokenizer.tok.vocab_size)):
+            df = self.fnt.getDF_by_id(tid)
+            idfscore = np.log((1.0+num_docs)/(df+1))
+            self.idfdict[tid] = idfscore
+        assert self.k > self.fb_embs ,"fb_embs should be smaller than number of clusters"
+        self._init_clustering()
+
+    def _init_clustering(self):
+        import sklearn
+        from packaging.version import Version
+        from warnings import warn
+        if Version(sklearn.__version__) > Version('0.23.2'):
+            warn("You have sklearn version %s - sklearn KMeans clustering changed in 0.24, so performance may differ from those reported in the ICTIR 2021 paper, which used 0.23.2. "
+            "See also https://github.com/scikit-learn/scikit-learn/issues/19990" % str(sklearn.__version__))
+
+    def _get_centroids(self, prf_embs):
+        from sklearn.cluster import KMeans
+        kmn = KMeans(self.k, random_state=self.r)
+        kmn.fit(prf_embs)
+        return kmn.cluster_centers_
+        
+    def transform_query(self, topic_and_res : pd.DataFrame) -> pd.DataFrame:
+        from sklearn.cluster import KMeans
+        topic_and_res = topic_and_res.sort_values('rank')
+        prf_embs = torch.cat([self.pytcfactory.rrm.get_embedding(docid) for docid in topic_and_res.head(self.fb_docs).docid.values])
+        centroids = self._get_centroids(prf_embs)
+        
+        emb_and_score = []
+        for cluster in range(self.k):
+            centroid = np.float32( centroids[cluster] )
+            tok2freq = self.fnt.get_nearest_tokens_for_emb(centroid)
+            if len(tok2freq) == 0:
+                continue
+            most_likely_tok = max(tok2freq, key=tok2freq.get)
+            tid = self.fnt.inference.query_tokenizer.tok.convert_tokens_to_ids(most_likely_tok)      
+            emb_and_score.append( (centroid, most_likely_tok, tid, self.idfdict[tid]) ) 
+        
+        sorted_by_second = sorted(emb_and_score, key=lambda tup: -tup[3])
+        
+        toks=[]
+        scores=[]
+        exp_embds = []
+        for i in range(min(self.fb_embs, len(sorted_by_second))):
+            emb, tok, tid, score = sorted_by_second[i]
+            toks.append(tok)
+            scores.append(score)
+            exp_embds.append(emb)
+        
+        first_row = topic_and_res.iloc[0]
+        newemb = torch.cat([
+            first_row.query_embs, 
+            torch.Tensor(exp_embds)])
+        
+        weights = torch.cat([ 
+            torch.ones(len(first_row.query_embs)),
+            self.beta * torch.Tensor(scores)]
+        )
+        
+        rtr = pd.DataFrame([
+            [first_row.qid, 
+             first_row.docno,
+             first_row.query, 
+             newemb, 
+             toks, 
+             weights ]
+            ],
+            columns=["qid","docno", "query", "query_embs", "query_toks", "query_weights"])
+        return rtr
+
+    def transform(self, topics_and_docs : pd.DataFrame) -> pd.DataFrame:
+        # validation of the input
+        required = ["qid", "query", "docno", "query_embs", "rank"]
+        for col in required:
+            assert col in topics_and_docs.columns
+        
+        #restore the docid column if missing
+        if "docid" not in topics_and_docs:
+            topics_and_docs = self.pytcfactory.add_docids(topics_and_docs)
+        
+        rtr = []
+        for qid, res in topics_and_docs.groupby("qid"):
+            new_query_df = self.transform_query(res)     
+            if self.return_docs:
+                new_query_df = res[["qid", "docno", "docid"]].merge(new_query_df, on=["qid"])
+                
+                new_query_df = new_query_df.rename(columns={'docno_x':'docno'})
+            rtr.append(new_query_df)
+        return pd.concat(rtr)

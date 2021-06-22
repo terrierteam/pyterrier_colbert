@@ -1,8 +1,6 @@
-# pyterrier-colbert
+# pyterrier-colbert & ColBERT-PRF
 
-Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/tree/v0.2), including for dense indexing and retrieval.
-
-COMING SOON: This repo will soon have the implementation of our pseudo-relevance feedback technique, ColBERT PRF, as defined in our upcoming ICTIR 2021 paper.
+Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/tree/v0.2), including for dense indexing and retrieval. This also includes the implementation of [ColBERT PRF](https://arxiv.org/abs/2106.11251). 
 
 ## Usage
 
@@ -41,8 +39,22 @@ pt.Experiment(
 )
 ```
 
+## ColBERT PRF
+
+You can use ColBERTFactory to obtain [ColBERT PRF](https://arxiv.org/abs/2106.11251) pipelines, as follows:
+```python
+colbert_prf_rank = pytcolbert.prf(rerank=False)
+colbert_prf_rerank = pytcolbert.prf(rerank=True)
+```
+
+ColBERT PRF requires the ColBERT index to have aligned token ids. During indexing, use the `ids=True` kwarg for ColBERTIndexer, as follows:
+```
+indexer = ColBERTIndexer("/path/to/checkpoint.dnn", "/path/to/index", "index_name", ids=True)
+```
+
 ## Demos
  - vaswani.ipy - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
+ - colbertprf-msmarco-passages.ipynb - [[Github](colbertprf-msmarco-passages.ipynb)] - demonstrates ColBERT PRF on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
  - colbert_text_and_explain.ipynb - [[Github](colbert_text_and_explain.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/colbert_text_and_explain.ipynb)] - demonstrates using a ColBERT model for scoring text, and for explaining an interaction
 
 ## Resource Requirements
@@ -65,6 +77,7 @@ On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.
 
  - [Khattab20]: Omar Khattab, Matei Zaharia. ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT. In Proceedings of SIGIR 2020. https://arxiv.org/abs/2004.12832
  - [Macdonald20]: Craig Macdonald, Nicola Tonellotto. Declarative Experimentation in Information Retrieval using PyTerrier. Craig Macdonald and Nicola Tonellotto. In Proceedings of ICTIR 2020. https://arxiv.org/abs/2007.14271
+ - [Wang21]: Xiao Wang, Craig Macdonald, Nicola Tonellotto, Iadh Ounis. Pseudo-Relevance Feedback for Multiple Representation Dense Retrieval. In Proceedings of ICTIR 2021. https://arxiv.org/abs/2106.11251
 
 
 ## Credits
