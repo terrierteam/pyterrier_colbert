@@ -629,7 +629,7 @@ class ColbertPRF(TransformerBase):
         emb_and_score = []
         for cluster in range(self.k):
             centroid = np.float32( centroids[cluster] )
-            tok2freq = self.nn_term.get_nearest_tokens_for_emb(self.fnt, centroid)
+            tok2freq = self.fnt.get_nearest_tokens_for_emb(self.fnt, centroid)
             if len(tok2freq) == 0:
                 continue
             most_likely_tok = max(tok2freq, key=tok2freq.get)
