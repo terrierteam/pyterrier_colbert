@@ -126,7 +126,7 @@ class re_ranker_mmap:
         # identify the tensor we look for
         disk_tensor = self.part_mmap[part_id].get_embedding(local_pid)
         doclen = disk_tensor.shape[0]
-         # only here is there a memory copy from the memory mapped file 
+        # only here is there a memory copy from the memory mapped file 
         target[index, :doclen, :] = disk_tensor
         return target
     
@@ -215,6 +215,7 @@ class ColBERTFactory():
         args.mask_punctuation = False
         args.partitions = faiss_partitions
 
+        self.verbose = False
         self.index_root = index_root
         self.index_name = index_name
         if index_root is None or index_name is None:
@@ -483,12 +484,12 @@ class ColBERTFactory():
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer()
 
-    def prf(pytcolbert, reranker, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
+    def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
         """
         Returns a pipeline for ColBERT PRF, either as a ranker, or a re-ranker. Final ranking is cutoff at 1000 docs.
     
         Parameters:
-         - reranker(bool): Whether to rerank the initial documents, or to perform a new set retrieve to gather new documents.
+         - rerank(bool): Whether to rerank the initial documents, or to perform a new set retrieve to gather new documents.
          - fb_docs(int): Number of passages to use as feedback. Defaults to 3. 
          - k(int): Number of clusters to apply on the embeddings of the top K documents. Defaults to 24.
          - fb_terms(int): Number of expansion embeddings to add to the query. Defaults to 10.
@@ -503,7 +504,7 @@ class ColBERTFactory():
         #input: qid, query, 
         #output: qid, query, query_embs, query_toks, query_weights, docno, rank, score
         dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer(query_encoded=True, add_ranks=True)
-        if reranker:
+        if rerank:
             prf_pipe = (
                 dense_e2e  
                 >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, fb_embs=fb_embs, beta=beta, return_docs=True)
@@ -579,7 +580,7 @@ from pyterrier.transformer import TransformerBase
 import pandas as pd
 
 class ColbertPRF(TransformerBase):
-    def __init__(self, pytcfactory, k, fb_embs, num_docs, beta=1, r = 42, return_docs = False, fb_docs=10,  *args, **kwargs):
+    def __init__(self, pytcfactory, k, fb_embs, beta=1, r = 42, return_docs = False, fb_docs=10,  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.k = k
         self.fb_embs = fb_embs
