@@ -432,13 +432,13 @@ class ColBERTFactory():
             df["docno"] = df["docid"].apply(lambda docid : self.docid2docno[docid])
         return df
 
-    def index_scorer(self, query_encoded=False, add_ranks=False) -> TransformerBase:
+    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True) -> TransformerBase:
         """
         Returns a transformer that uses the ColBERT index to perform scoring of documents to queries 
         """
-        #input: qid, query, docno, [docid] 
+        #input: qid, query, [docno], [docid] 
         #OR
-        #input: qid, query, query_embs, query_toks, query_weights, docno
+        #input: qid, query, query_embs, query_toks, query_weights, docno], [docid] 
 
         #output: qid, query, docno, score
 
@@ -452,6 +452,8 @@ class ColBERTFactory():
             docids = qid_group["docid"].values
             scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids)
             qid_group["score"] = scores
+            if "docno" not in qid_group.columns and add_docnos:
+                qid_group = self._add_docnos(qid_group)
             if add_ranks:
                 return pt.model.add_ranks(qid_group)
             return qid_group
@@ -468,6 +470,8 @@ class ColBERTFactory():
             #TODO batching
             scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights)
             qid_group["score"] = scores
+            if "docno" not in qid_group.columns and add_docnos:
+                qid_group = self._add_docnos(qid_group)
             if add_ranks:
                 return pt.model.add_ranks(qid_group)
             return qid_group
