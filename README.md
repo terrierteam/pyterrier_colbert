@@ -1,6 +1,6 @@
 # pyterrier-colbert & ColBERT-PRF
 
-Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/tree/v0.2), including for dense indexing and retrieval. This also includes the implementation of ColBERT PRF. 
+Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/tree/v0.2), including for dense indexing and retrieval. This also includes the implementation of [ColBERT PRF](https://arxiv.org/abs/2106.11251). 
 
 ## Usage
 
@@ -41,7 +41,7 @@ pt.Experiment(
 
 ## ColBERT PRF
 
-You can use ColBERTFactory to obtain ColBERT PRF pipelines, as follows:
+You can use ColBERTFactory to obtain [ColBERT PRF](https://arxiv.org/abs/2106.11251) pipelines, as follows:
 ```python
 colbert_prf_rank = pytcolbert.prf(rerank=False)
 colbert_prf_rerank = pytcolbert.prf(rerank=True)
@@ -76,7 +76,7 @@ On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.
 
  - [Khattab20]: Omar Khattab, Matei Zaharia. ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT. In Proceedings of SIGIR 2020. https://arxiv.org/abs/2004.12832
  - [Macdonald20]: Craig Macdonald, Nicola Tonellotto. Declarative Experimentation in Information Retrieval using PyTerrier. Craig Macdonald and Nicola Tonellotto. In Proceedings of ICTIR 2020. https://arxiv.org/abs/2007.14271
- - [Wang21]: Xiao Wang, Craig Macdonald, Nicola Tonellotto, Iadh Ounis. Pseudo-Relevance Feedback for Multiple Representation Dense Retrieval. In Proceedings of ICTIR 2021.
+ - [Wang21]: Xiao Wang, Craig Macdonald, Nicola Tonellotto, Iadh Ounis. Pseudo-Relevance Feedback for Multiple Representation Dense Retrieval. In Proceedings of ICTIR 2021. https://arxiv.org/abs/2106.11251
 
 
 ## Credits
