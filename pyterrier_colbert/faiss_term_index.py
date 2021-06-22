@@ -3,7 +3,7 @@ import time
 import faiss
 import random
 import torch
-
+import numpy as np
 from collections import defaultdict
 from multiprocessing import Pool
 from colbert.modeling.inference import ModelInference
@@ -106,13 +106,13 @@ class FaissNNTerm():
             self.dfs = dfs
         print("Done")
         
-    def get_nearest_tokens_for_emb(self, emb, k=10, low_tf=0):
+    def get_nearest_tokens_for_emb(self, emb : np.array, k=10, low_tf=0):
         """
             Displays the most related terms for each query
         """
         from collections import defaultdict
-        import numpy as np
-        scores, ids = self.faiss_index.faiss_index.search(np.array([emb]), k=k)
+        queryEmbs = np.expand_dims(emb, axis=0)
+        scores, ids = self.faiss_index.faiss_index.search(queryEmbs, k=k)
         id2freq = defaultdict(int)
         for id_set in ids:
             for id in id_set:
