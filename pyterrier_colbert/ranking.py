@@ -216,6 +216,7 @@ class ColBERTFactory():
         args.partitions = faiss_partitions
 
         self.verbose = False
+        self.faissnn = None
         self.index_root = index_root
         self.index_name = index_name
         if index_root is None or index_name is None:
@@ -284,7 +285,7 @@ class ColBERTFactory():
         """
         if self.faissnn is not None:
             return self.faissnn
-        from colbert.ranking.faiss_term_index import FaissNNTerm
+        from .faiss_term_index import FaissNNTerm
         #TODO accept self.args.inference as well
         self.faissnn = FaissNNTerm(
             self.args.colbert,
