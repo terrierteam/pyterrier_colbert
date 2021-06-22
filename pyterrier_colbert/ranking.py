@@ -611,7 +611,7 @@ class ColbertPRF(TransformerBase):
         from packaging.version import Version
         from warnings import warn
         if Version(sklearn.__version__) > Version('0.23.2'):
-            warn("You have sklearn version %s - sklearn KMeans clustering changed in 0.24, so performance may differ from those reported in the ICTIR 2021 paper."
+            warn("You have sklearn version %s - sklearn KMeans clustering changed in 0.24, so performance may differ from those reported in the ICTIR 2021 paper, which used 0.23.2. "
             "See also https://github.com/scikit-learn/scikit-learn/issues/19990" % str(sklearn.__version__))
 
     def _get_centroids(self, prf_embs):
