@@ -216,7 +216,7 @@ class ColBERTFactory():
         args.partitions = faiss_partitions
 
         self.verbose = False
-        self.faissnn = None
+        self._faissnn = None
         self.index_root = index_root
         self.index_name = index_name
         if index_root is None or index_name is None:
@@ -283,17 +283,17 @@ class ColBERTFactory():
         """
         Returns an instance of the FaissNNTerm class, which provides statistics about terms
         """
-        if self.faissnn is not None:
-            return self.faissnn
+        if self._faissnn is not None:
+            return self._faissnn
         from .faiss_term_index import FaissNNTerm
         #TODO accept self.args.inference as well
-        self.faissnn = FaissNNTerm(
+        self._faissnn = FaissNNTerm(
             self.args.colbert,
             self.index_root,
             self.index_name,
             faiss_index = self._faiss_index(),
             df=df)
-        return self.faissnn
+        return self._faissnn
 
     def query_encoder(self, detach=True) -> TransformerBase:
         """
@@ -593,7 +593,7 @@ class ColbertPRF(TransformerBase):
         self.r = r
         import torch
         import numpy as np
-        num_docs = len(self.fnt.doclens)
+        num_docs = len(self.fnt.num_docs)
         self.idfdict = {}
         for tid in pt.tqdm(range(self.fnt.inference.query_tokenizer.tok.vocab_size)):
             df = self.fnt.getDF_by_id(tid)

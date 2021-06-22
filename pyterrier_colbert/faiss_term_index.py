@@ -94,7 +94,7 @@ class FaissNNTerm():
         part_doclens = load_doclens(index_path, flatten=False)
         import numpy as np
         doclens = np.concatenate([np.array(part) for part in part_doclens])
-        
+        self.num_docs = len(doclens)
         if df:
             print("Computing document frequencies")
             dfs=torch.zeros(vocab_size, dtype=torch.int64)
