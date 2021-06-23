@@ -192,6 +192,16 @@ class re_ranker_mmap:
         scores = (weightsQ*maxscoreQ).sum(1).cpu()
         return scores.tolist()
 
+    def our_rerank_with_embeddings_batched(self, qembs, pids, weightsQ=None, gpu=True, batch_size=1000):
+        import more_itertools
+        if len(pids) < batch_size:
+            return self.our_rerank_with_embeddings(qembs, pids, weightsQ, gpu)
+        allscores=[]
+        for group in more_itertools.chunked(pids, batch_size):
+            batch_scores = self.our_rerank_with_embeddings(qembs, group, weightsQ, gpu)
+            allscores.extend(batch_scores)
+        return allscores
+
 class ColBERTFactory():
 
     def __init__(self, 
@@ -439,7 +449,7 @@ class ColBERTFactory():
             df["docno"] = df["docid"].apply(lambda docid : self.docid2docno[docid])
         return df
 
-    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True) -> TransformerBase:
+    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True, batch_size=1000) -> TransformerBase:
         """
         Returns a transformer that uses the ColBERT index to perform scoring of documents to queries 
         """
@@ -457,7 +467,10 @@ class ColBERTFactory():
                 qid_group = self._add_docids(qid_group)
             qid_group.sort_values("docid", inplace=True)
             docids = qid_group["docid"].values
-            scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids)
+            if batch_size > 0:
+                scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids, batch_size=batch_size)
+            else:
+                scores = rrm.our_rerank(qid_group.iloc[0]["query"], docids)
             qid_group["score"] = scores
             if "docno" not in qid_group.columns and add_docnos:
                 qid_group = self._add_docnos(qid_group)
@@ -474,8 +487,10 @@ class ColBERTFactory():
             weights = None
             if "query_weights" in qid_group.columns:
                 weights = qid_group.iloc[0].query_weights
-            #TODO batching
-            scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights)
+            if batch_size > 0:
+                scores = rrm.our_rerank_with_embeddings_batched(qid_group.iloc[0]["query_embs"], docids, weights, batch_size=batch_size)
+            else:
+                scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights)
             qid_group["score"] = scores
             if "docno" not in qid_group.columns and add_docnos:
                 qid_group = self._add_docnos(qid_group)
