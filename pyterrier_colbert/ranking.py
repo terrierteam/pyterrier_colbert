@@ -449,7 +449,7 @@ class ColBERTFactory():
             df["docno"] = df["docid"].apply(lambda docid : self.docid2docno[docid])
         return df
 
-    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True, batch_size=1000) -> TransformerBase:
+    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True, batch_size=10000) -> TransformerBase:
         """
         Returns a transformer that uses the ColBERT index to perform scoring of documents to queries 
         """
@@ -530,19 +530,19 @@ class ColBERTFactory():
         """
         #input: qid, query, 
         #output: qid, query, query_embs, query_toks, query_weights, docno, rank, score
-        dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer(query_encoded=True, add_ranks=True)
+        dense_e2e = pytcolbert.set_retrieve() >> pytcolbert.index_scorer(query_encoded=True, add_ranks=True, batch_size=10000)
         if rerank:
             prf_pipe = (
                 dense_e2e  
                 >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, fb_embs=fb_embs, beta=beta, return_docs=True)
-                >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) %1000)
+                >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True, batch_size=5000) %1000)
             )
         else:
             prf_pipe = (
                 dense_e2e  
                 >> ColbertPRF(pytcolbert, k=k, fb_docs=fb_docs, fb_embs=fb_embs, beta=beta, return_docs=False)
                 >> pytcolbert.set_retrieve(query_encoded=True)
-                >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True) % 1000)
+                >> (pytcolbert.index_scorer(query_encoded=True, add_ranks=True, batch_size=5000) % 1000)
             )
         return prf_pipe
 
