@@ -509,7 +509,7 @@ class ColBERTFactory():
         """
         #input: qid, query, 
         #output: qid, query, docno, score
-        return self.set_retrieve() >> self.index_scorer()
+        return self.set_retrieve() >> self.index_scorer(query_encoded=True)
 
     def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
         """
@@ -640,26 +640,30 @@ class ColbertPRF(TransformerBase):
         from sklearn.cluster import KMeans
         kmn = KMeans(self.k, random_state=self.r)
         kmn.fit(prf_embs)
-        return kmn.cluster_centers_
+        return np.float32(kmn.cluster_centers_)
         
     def transform_query(self, topic_and_res : pd.DataFrame) -> pd.DataFrame:
-        from sklearn.cluster import KMeans
         topic_and_res = topic_and_res.sort_values('rank')
         prf_embs = torch.cat([self.pytcfactory.rrm.get_embedding(docid) for docid in topic_and_res.head(self.fb_docs).docid.values])
+        
+        # perform clustering on the document embeddings to identify the representative embeddings
         centroids = self._get_centroids(prf_embs)
         
+        # get the most likely tokens for each centroid        
+        toks2freqs = self.fnt.get_nearest_tokens_for_embs(centroids)
+
+        # rank the clusters by descending idf
         emb_and_score = []
-        for cluster in range(self.k):
-            centroid = np.float32( centroids[cluster] )
-            tok2freq = self.fnt.get_nearest_tokens_for_emb(centroid)
+        for cluster, tok2freq in zip(range(self.k),toks2freqs):
             if len(tok2freq) == 0:
                 continue
             most_likely_tok = max(tok2freq, key=tok2freq.get)
-            tid = self.fnt.inference.query_tokenizer.tok.convert_tokens_to_ids(most_likely_tok)      
-            emb_and_score.append( (centroid, most_likely_tok, tid, self.idfdict[tid]) ) 
-        
+            tid = self.fnt.inference.query_tokenizer.tok.convert_tokens_to_ids(most_likely_tok)
+            emb_and_score.append( (centroids[cluster], most_likely_tok, tid, self.idfdict[tid]) ) 
         sorted_by_second = sorted(emb_and_score, key=lambda tup: -tup[3])
         
+
+       # build up the new dataframe columns
         toks=[]
         scores=[]
         exp_embds = []
@@ -670,15 +674,19 @@ class ColbertPRF(TransformerBase):
             exp_embds.append(emb)
         
         first_row = topic_and_res.iloc[0]
+        
+        # concatenate the new embeddings to the existing query embeddings 
         newemb = torch.cat([
             first_row.query_embs, 
             torch.Tensor(exp_embds)])
         
+        # the weights column defines important of each query embedding
         weights = torch.cat([ 
             torch.ones(len(first_row.query_embs)),
             self.beta * torch.Tensor(scores)]
         )
         
+        # generate the revised query dataframe row
         rtr = pd.DataFrame([
             [first_row.qid, 
              first_row.docno,

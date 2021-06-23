@@ -82,6 +82,7 @@ class FaissNNTerm():
             self.faiss_index.nprobe = nprobe
         
         self.inference = ModelInference(self.colbert)
+        self.skips = set(self.inference.query_tokenizer.tok.special_tokens_map.values())
         print_message("#> Building the emb2tid mapping..")
         self.emb2tid = load_tokenids(index_path)
         print(len(self.emb2tid))
@@ -107,28 +108,37 @@ class FaissNNTerm():
                 dfs[tids] += 1
                 offset += doclen
             self.dfs = dfs
-        
-    def get_nearest_tokens_for_emb(self, emb : np.array, k=10, low_tf=0):
+    
+    def get_nearest_tokens_for_embs(self, embs : np.array, k=10, low_tf=0):
         """
-            Displays the most related terms for each query
+            Returns the most related terms for each of a number of given embeddings
         """
         from collections import defaultdict
-        queryEmbs = np.expand_dims(emb, axis=0)
-        scores, ids = self.faiss_index.faiss_index.search(queryEmbs, k=k)
-        id2freq = defaultdict(int)
+        assert len(embs.shape) == 2
+        
+        _, ids = self.faiss_index.faiss_index.search(embs, k=k)
+        
+        rtrs=[]
         for id_set in ids:
+            id2freq = defaultdict(int)
             for id in id_set:
                 id2freq[self.emb2tid[id].item()] += 1
-        skips = set(self.inference.query_tokenizer.tok.special_tokens_map.values())
-        rtr = {}
-        for t, freq in sorted(id2freq.items(), key=lambda item: -1* item[1]):
-            if freq <= low_tf:
-                continue
-            token = self.inference.query_tokenizer.tok.decode([t])
-            if "[unused" in token or token in skips:
-                continue
-            rtr[token] = freq
-        return rtr
+            rtr = {}
+            for t, freq in sorted(id2freq.items(), key=lambda item: -1* item[1]):
+                if freq <= low_tf:
+                    continue
+                token = self.inference.query_tokenizer.tok.decode([t])
+                if "[unused" in token or token in self.skips:
+                    continue
+                rtr[token] = freq
+            rtrs.append(rtr)
+        return rtrs
+
+    def get_nearest_tokens_for_emb(self, emb : np.array, k=10, low_tf=0):
+        """
+            Returns the most related terms for one given embedding
+        """
+        return self.get_nearest_tokens_for_embs(np.expand_dims(emb, axis=0), k=k, low_tf=low_tf)[0]
 
     def getCTF(self, term):
         """
@@ -189,12 +199,11 @@ class FaissNNTerm():
                     id2freq[self.emb2tid[id].item()] += 1
             rtr = q
             count=0
-            skips = set(self.inference.query_tokenizer.tok.special_tokens_map.values())
             for t, freq in sorted(id2freq.items(), key=lambda item: -1* item[1]):
                 if freq <= low_tf:
                     continue
                 token = self.inference.query_tokenizer.tok.decode([t])
-                if "[unused" in token or token in skips:
+                if "[unused" in token or token in self.skips:
                     continue
                 rtr += "\n\t" + token + " ("+str(t)+") x " + str(freq) + " "
                 count+= 1
