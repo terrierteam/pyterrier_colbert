@@ -3,11 +3,7 @@ import time
 import faiss
 import random
 import torch
-<<<<<<< HEAD
-
-=======
 import numpy as np
->>>>>>> 6940fde3e6fb32bc296f66532162bb690b08449a
 from collections import defaultdict
 from multiprocessing import Pool
 from colbert.modeling.inference import ModelInference
