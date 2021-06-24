@@ -52,6 +52,10 @@ ColBERT PRF requires the ColBERT index to have aligned token ids. During indexin
 indexer = ColBERTIndexer("/path/to/checkpoint.dnn", "/path/to/index", "index_name", ids=True)
 ```
 
+If you use ColBERT PRF in your research, you must cite our ICTIR 2021 paper (citation included below).
+
+All of our results files are available from the paper's [Virtual Appendix](https://github.com/Xiao0728/ColBERT-PRF-VirtualAppendix).
+
 ## Demos
  - vaswani.ipy - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
  - colbertprf-msmarco-passages.ipynb - [[Github](colbertprf-msmarco-passages.ipynb)] - demonstrates ColBERT PRF on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
