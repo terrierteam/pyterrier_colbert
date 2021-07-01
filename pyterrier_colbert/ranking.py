@@ -556,7 +556,7 @@ class ColBERTFactory():
             pid = doc
         else:
             raise ValueError("Expected docno(str) or docid(int)")
-        embsD = self.get_embedding(pid)
+        embsD = self._rrm().get_embedding(pid)
         idsD = self.nn_term().get_tokens_for_doc(pid)
         return self._explain(query, embsD, idsD)
 
