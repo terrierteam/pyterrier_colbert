@@ -546,13 +546,18 @@ class ColBERTFactory():
             )
         return prf_pipe
 
-    def explain_doc(self, query : str, docno : str):
+    def explain_doc(self, query : str, doc : Union[str,int]):
         """
         Provides a diagram explaining the interaction between a query and a given docno
         """
-        raise NotImplementedError()
-        pid = self.docno2docid[docno]
+        if isinstance(doc,str):
+            pid = self.docno2docid[doc]
+        elif isinstance(doc,int):
+            pid = doc
+        else:
+            raise ValueError("Expected docno(str) or docid(int)")
         embsD = self.get_embedding(pid)
+        idsD = self.nn_term().get_tokens_for_doc(pid)
         return self._explain(query, embsD, idsD)
 
     def explain_text(self, query : str, document : str):
