@@ -94,16 +94,25 @@ class FaissNNTerm():
         print("Loading doclens")
         part_doclens = load_doclens(index_path, flatten=False)
         import numpy as np
-        doclens = np.concatenate([np.array(part) for part in part_doclens])
-        self.num_docs = len(doclens)
+        self.doclens = np.concatenate([np.array(part) for part in part_doclens])
+        self.num_docs = len(self.doclens)
+        self.end_offsets = np.cumsum(self.doclens)
         if df:
             dfs=torch.zeros(vocab_size, dtype=torch.int64)
             offset = 0
-            for doclen in tqdm(doclens, unit="d", desc="Computing document frequencies"):
+            for doclen in tqdm(self.doclens, unit="d", desc="Computing document frequencies"):
                 tids= torch.unique(self.emb2tid[offset:offset+doclen])
                 dfs[tids] += 1
                 offset += doclen
             self.dfs = dfs
+    
+    def get_tokens_for_doc(self, pid):
+        """
+        Returns the actual indexed tokens within a given document
+        """
+        end_offset = self.end_offsets[pid]
+        start_offset = end_offset - self.doclens[pid]
+        return self.emb2tid[start_offset:end_offset]
     
     def get_nearest_tokens_for_embs(self, embs : np.array, k=10, low_tf=0):
         """
