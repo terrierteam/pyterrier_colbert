@@ -49,11 +49,15 @@ class CollectionEncoder():
         self.num_processes = num_processes
         self.iterator = self._initialize_iterator()
 
+        # Chunksize represents the maximum size of a single .pt file
         assert 0.5 <= args.chunksize <= 128.0
         max_bytes_per_file = args.chunksize * (1024*1024*1024)
 
+        # A document requires at max 180 * 128 * 2 bytes = 45 KB
         max_bytes_per_doc = (self.args.doc_maxlen * self.args.dim * 2.0)
 
+        # Possible subset size represents the max number of documents stored in a single .pt file,
+        # with a min of 10k documents.
         minimum_subset_size = 10_000
         maximum_subset_size = max_bytes_per_file / max_bytes_per_doc
         maximum_subset_size = max(minimum_subset_size, maximum_subset_size)
