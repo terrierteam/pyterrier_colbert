@@ -48,7 +48,7 @@ colbert_prf_rerank = pytcolbert.prf(rerank=True)
 ```
 
 ColBERT PRF requires the ColBERT index to have aligned token ids. During indexing, use the `ids=True` kwarg for ColBERTIndexer, as follows:
-```
+```python
 indexer = ColBERTIndexer("/path/to/checkpoint.dnn", "/path/to/index", "index_name", ids=True)
 ```
 
