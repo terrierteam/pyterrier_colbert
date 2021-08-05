@@ -1,6 +1,6 @@
 # pyterrier-colbert & ColBERT-PRF
 
-Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/tree/v0.2), including for dense indexing and retrieval. This also includes the implementation of [ColBERT PRF](https://arxiv.org/abs/2106.11251). 
+Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/), including for dense indexing and retrieval. This also includes the implementation of [ColBERT PRF](https://arxiv.org/abs/2106.11251). 
 
 ## Usage
 
