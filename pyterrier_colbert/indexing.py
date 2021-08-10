@@ -14,7 +14,7 @@ import queue
 import math
 from colbert.utils.parser import Arguments
 import colbert.utils.distributed as distributed
-
+from warnings import warn
 from colbert.utils.utils import create_directory
 
 import os
@@ -252,7 +252,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
 
 class ColBERTIndexer(IterDictIndexerBase):
-    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
@@ -279,6 +279,13 @@ class ColBERTIndexer(IterDictIndexerBase):
         self.ids = ids
         self.prepend_title = prepend_title
         self.num_docs = num_docs
+        self.gpu = gpu
+        if not gpu:
+            warn("Gpu disabled, YMMV")
+            import colbert.parameters
+            import colbert.evaluation.load_model
+            import colbert.modeling.colbert
+            colbert.parameters.DEVICE = colbert.evaluation.load_model.DEVICE = colbert.modeling.colbert.DEVICE = torch.device("cpu")
 
         assert self.args.slices >= 1
         assert self.args.sample is None or (0.0 < self.args.sample <1.0), self.args.sample
@@ -289,7 +296,7 @@ class ColBERTIndexer(IterDictIndexerBase):
             self.args.index_root,
             self.args.index_name,
             self.args.partitions,
-            memtype
+            memtype, gpu=self.gpu
         )
 
     def index(self, iterator):
