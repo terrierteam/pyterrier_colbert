@@ -602,7 +602,7 @@ class ColBERTFactory():
             contributions.append(interaction[maxpos,i])
 
         from sklearn.preprocessing import minmax_scale
-        ax1.bar([0.5 + i for i in range(0,32)], contributions, color=plt.cm.Blues(minmax_scale(contributions)))
+        ax1.bar([0.5 + i for i in range(0,32)], contributions, color=plt.cm.Blues(minmax_scale(contributions, feature_range=(0.4, 1))))
         ax1.set_xlim([0,32])
         ax1.set_xticklabels([])
         fig.tight_layout()
