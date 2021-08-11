@@ -601,7 +601,8 @@ class ColBERTFactory():
             plt.text(i-0.25, maxpos+0.1, "X", fontsize=5)
             contributions.append(interaction[maxpos,i])
 
-        ax1.bar([0.5 + i for i in range(0,32)], contributions)
+        ax1.bar([0.5 + i for i in range(0,32)], contributions, colors=plt.cm.Blues(contributions))
+        ax1.set_xlim([0,32])
         ax1.set_xticklabels([])
         fig.tight_layout()
         #fig.subplots_adjust(hspace=-0.37)
