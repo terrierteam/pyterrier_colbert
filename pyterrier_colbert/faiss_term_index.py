@@ -1,6 +1,5 @@
 import os
 import time
-import faiss
 import random
 import torch
 import numpy as np
@@ -13,7 +12,6 @@ from colbert.indexing.loaders import get_parts
 
 from colbert.evaluation.loaders import load_colbert
 from colbert.indexing.faiss import get_faiss_index_name
-from colbert.ranking.faiss_index import FaissIndex
 from colbert.indexing.loaders import load_doclens
 
 
@@ -67,7 +65,7 @@ class FaissNNTerm():
 
             self.part_range = part_range
             self.faiss_part_range = faiss_part_range
-
+            from colbert.ranking.faiss_index import FaissIndex
             self.faiss_index = FaissIndex(index_path, faiss_index_path, nprobe, faiss_part_range)
 
             #self.faiss_index = faiss.read_index(faiss_index_path)
