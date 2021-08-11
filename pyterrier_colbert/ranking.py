@@ -605,7 +605,7 @@ class ColBERTFactory():
         ax1.set_xticklabels([])
         fig.tight_layout()
         #fig.subplots_adjust(hspace=-0.37)
-        fig.show()
+        return fig
 
 from pyterrier.transformer import TransformerBase
 import pandas as pd
