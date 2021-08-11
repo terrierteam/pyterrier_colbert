@@ -21,7 +21,6 @@ from collections import defaultdict
 import numpy as np
 import pickle
 from warnings import warn
-from pyterrier_colbert.faiss_term_index import FaissNNTerm
 
 class file_part_mmap:
     def __init__(self, file_path, file_doclens):
