@@ -56,6 +56,10 @@ If you use ColBERT PRF in your research, you must cite our ICTIR 2021 paper (cit
 
 All of our results files are available from the paper's [Virtual Appendix](https://github.com/Xiao0728/ColBERT-PRF-VirtualAppendix).
 
+## Coming Soon
+
+This repository will shorly be updated with code to apply the techniques of query embedding pruning [Tonellotto21] and approximate ANN ranking [Macdonald21a].
+
 ## Demos
  - vaswani.ipy - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
  - colbertprf-msmarco-passages.ipynb - [[Github](colbertprf-msmarco-passages.ipynb)] - demonstrates ColBERT PRF on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
@@ -82,6 +86,8 @@ On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.
  - [Khattab20]: Omar Khattab, Matei Zaharia. ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT. In Proceedings of SIGIR 2020. https://arxiv.org/abs/2004.12832
  - [Macdonald20]: Craig Macdonald, Nicola Tonellotto. Declarative Experimentation in Information Retrieval using PyTerrier. Craig Macdonald and Nicola Tonellotto. In Proceedings of ICTIR 2020. https://arxiv.org/abs/2007.14271
  - [Macdonald21]: On Single and Multiple Representations in Dense Passage Retrieval. Craig Macdonald, Nicola Tonellotto and Iadh Ounis. In Proceedings of IIR 2021.
+ - [Macdonald21a]: On Approximate Nearest Neighbour Selection for Multi-Stage Dense Retrieval. Craig Macdonald and Nicola Tonellotto. In Proceedings of CIKM 2021. 
+ - [Tonellotto21]: Query Embedding Pruning for Dense Retrieval Nicola Tonellotto and Craig Macdonald. In Proceedings of CIKM 2021. https://arxiv.org/abs/2108.10341
  - [Wang21]: Xiao Wang, Craig Macdonald, Nicola Tonellotto, Iadh Ounis. Pseudo-Relevance Feedback for Multiple Representation Dense Retrieval. In Proceedings of ICTIR 2021. https://arxiv.org/abs/2106.11251
 
 
