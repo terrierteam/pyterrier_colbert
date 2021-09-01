@@ -85,8 +85,8 @@ On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.
 
  - [Khattab20]: Omar Khattab, Matei Zaharia. ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT. In Proceedings of SIGIR 2020. https://arxiv.org/abs/2004.12832
  - [Macdonald20]: Craig Macdonald, Nicola Tonellotto. Declarative Experimentation in Information Retrieval using PyTerrier. Craig Macdonald and Nicola Tonellotto. In Proceedings of ICTIR 2020. https://arxiv.org/abs/2007.14271
- - [Macdonald21]: On Single and Multiple Representations in Dense Passage Retrieval. Craig Macdonald, Nicola Tonellotto and Iadh Ounis. In Proceedings of IIR 2021.
- - [Macdonald21a]: On Approximate Nearest Neighbour Selection for Multi-Stage Dense Retrieval. Craig Macdonald and Nicola Tonellotto. In Proceedings of CIKM 2021. 
+ - [Macdonald21]: On Single and Multiple Representations in Dense Passage Retrieval. Craig Macdonald, Nicola Tonellotto and Iadh Ounis. In Proceedings of IIR 2021. https://arxiv.org/abs/2108.06279
+ - [Macdonald21a]: On Approximate Nearest Neighbour Selection for Multi-Stage Dense Retrieval. Craig Macdonald and Nicola Tonellotto. In Proceedings of CIKM 2021. https://arxiv.org/abs/2108.11480 
  - [Tonellotto21]: Query Embedding Pruning for Dense Retrieval Nicola Tonellotto and Craig Macdonald. In Proceedings of CIKM 2021. https://arxiv.org/abs/2108.10341
  - [Wang21]: Xiao Wang, Craig Macdonald, Nicola Tonellotto, Iadh Ounis. Pseudo-Relevance Feedback for Multiple Representation Dense Retrieval. In Proceedings of ICTIR 2021. https://arxiv.org/abs/2106.11251
 
