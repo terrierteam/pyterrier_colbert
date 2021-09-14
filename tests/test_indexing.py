@@ -13,10 +13,10 @@ class TestIndexing(unittest.TestCase):
             chunksize=3,
             gpu=False)
 
-        indexer.index(pd.DataFrame([{
+        indexer.index([{
             "docno" : "d1",
             "text": "professor proton mixed the chemicals"
-        }]))
+        }])
 
         factory = indexer.ranking_factory()
 
