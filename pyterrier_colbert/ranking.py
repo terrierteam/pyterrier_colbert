@@ -251,7 +251,9 @@ class ColBERTFactory():
             self.faiss_index_on_gpu = False
             warn("Gpu disabled, YMMV")
             import colbert.parameters
-            colbert.parameters.DEVICE = torch.device("cpu")
+            import colbert.evaluation.load_model
+            import colbert.modeling.colbert
+            colbert.parameters.DEVICE = colbert.evaluation.load_model.DEVICE = colbert.modeling.colbert.DEVICE = torch.device("cpu")
         if isinstance (colbert_model, str):
             args.checkpoint = colbert_model
             args.colbert, args.checkpoint = load_model(args)
