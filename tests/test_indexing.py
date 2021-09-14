@@ -1,4 +1,5 @@
 import unittest
+import pandas as pd
 import tempfile
 class TestIndexing(unittest.TestCase):
 
@@ -12,10 +13,10 @@ class TestIndexing(unittest.TestCase):
             chunksize=3,
             gpu=False)
 
-        indexer.index({
+        indexer.index(pd.DataFrame([{
             "docno" : "d1",
-            "text": " professor proton mixed the chemicals"
-        })
+            "text": "professor proton mixed the chemicals"
+        }]))
 
         factory = indexer.ranking_factory()
 
