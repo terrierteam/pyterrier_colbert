@@ -304,7 +304,7 @@ class ColBERTIndexer(IterDictIndexerBase):
         from timeit import default_timer as timer
         starttime = timer()
         maxdocs = 100
-        assert not os.path.exists(self.args.index_path), self.args.index_path
+        #assert not os.path.exists(self.args.index_path), self.args.index_path
         docnos=[]
         docid=0
         def convert_gen(iterator):
