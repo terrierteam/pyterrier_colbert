@@ -40,7 +40,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install faiss
+        pip install faiss-gpu==1.6.3
         pip install -r requirements.txt
         #install this software
         pip install --timeout=120 .
