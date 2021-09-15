@@ -16,6 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
 
+    - uses: actions/checkout@v2
+
     - name: Setup Anaconda
       uses: fdiblen/anaconda-action@master
       with:
