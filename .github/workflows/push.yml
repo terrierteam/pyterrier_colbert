@@ -31,7 +31,10 @@ jobs:
 
     - name: Install Python dependencies
       run: |
+        conda activate conda-env
         python -m pip install --upgrade pip
+        which python
+        which pip
         conda install -c pytorch faiss-cpu
         pip install -r requirements.txt
         #install this software
@@ -42,4 +45,5 @@ jobs:
       env:
         TERRIER_VERSION: ${{ matrix.terrier }}
       run: |
+        conda activate conda-env
         pytest
