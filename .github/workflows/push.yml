@@ -23,7 +23,7 @@ jobs:
       with:
         pythonVersion: ${{ matrix.python }}
 
-     - name: Init Anaconda
+    - name: Init Anaconda
       run: conda init
     
     - name: Setup java
