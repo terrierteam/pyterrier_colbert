@@ -22,6 +22,9 @@ jobs:
       uses: fdiblen/anaconda-action@master
       with:
         pythonVersion: ${{ matrix.python }}
+
+     - name: Init Anaconda
+      run: conda init
     
     - name: Setup java
       uses: actions/setup-java@v1
