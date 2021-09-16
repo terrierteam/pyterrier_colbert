@@ -23,7 +23,10 @@ class TestIndexing(unittest.TestCase):
             dfOut = factory.end_to_end().search("chemical reactions")
             self.assertTrue(len(dfOut) > 0)
 
-            dfOut = factory.prf().search("chemical reactions")
+            dfOut = factory.prf(False).search("chemical reactions")
+            self.assertTrue(len(dfOut) > 0)
+
+            dfOut = factory.prf(True).search("chemical reactions")
             self.assertTrue(len(dfOut) > 0)
 
 
