@@ -4,7 +4,7 @@ import tempfile
 class TestIndexing(unittest.TestCase):
 
     def test_indexing_1doc(self):
-        #minimum test case size is 100 docs, 40 Wordpiece tokens
+        #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
         import pyterrier as pt
         from pyterrier_colbert.indexing import ColBERTIndexer
         checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
@@ -18,7 +18,13 @@ class TestIndexing(unittest.TestCase):
         iter = pt.get_dataset("vaswani").get_corpus_iter()
         indexer.index([ next(iter) for i in range(200) ])
             
-        factory = indexer.ranking_factory()
+        for factory in [indexer.ranking_factory()]:
+
+            dfOut = factory.end_to_end().search("chemical reactions")
+            self.assertTrue(len(dfOut) > 0)
+
+            dfOut = factory.prf().search("chemical reactions")
+            self.assertTrue(len(dfOut) > 0)
 
 
     def setUp(self):
