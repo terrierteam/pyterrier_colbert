@@ -25,11 +25,11 @@ jobs:
         architecture: ${{ matrix.architecture }}
 
     - name: Setup conda
-        uses: s-weigand/setup-conda@v1
-        with:
-          python-version: ${{ matrix.python }}
-          conda-channels: anaconda, conda-forge
-          activate-conda: true
+      uses: s-weigand/setup-conda@v1
+      with:
+        python-version: ${{ matrix.python }}
+        conda-channels: anaconda, conda-forge
+        activate-conda: true
 
     - name: Install Python dependencies
       run: |
