@@ -35,7 +35,7 @@ jobs:
       run: |
         conda install pip
         conda install mkl_fft -y
-        conda install -c pytorch faiss-cpu
+        conda install -c pytorch faiss-cpu=1.6.3
         pip install -r requirements.txt
         #install this software
         pip install --timeout=120 .
