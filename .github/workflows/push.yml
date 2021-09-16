@@ -44,4 +44,4 @@ jobs:
       env:
         TERRIER_VERSION: ${{ matrix.terrier }}
       run: |
-        pytest
+        pytest -s
