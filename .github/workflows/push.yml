@@ -24,18 +24,24 @@ jobs:
         java-version: ${{ matrix.java }}
         architecture: ${{ matrix.architecture }}
 
+    - name: Setup conda
+        uses: s-weigand/setup-conda@v1
+        with:
+          python-version: ${{ matrix.python }}
+          conda-channels: anaconda, conda-forge
+          activate-conda: true
+
     - name: Install Python dependencies
       run: |
-        $CONDA/bin/conda create -n condaenv python=${{ matrix.python }}
-        $CONDA/envs/condaenv/bin/conda install pip
-        $CONDA/envs/condaenv/bin/conda install -c pytorch faiss-cpu
-        $CONDA/envs/condaenv/bin/pip install -r requirements.txt
+        conda install pip
+        conda install -c pytorch faiss-cpu
+        pip install -r requirements.txt
         #install this software
-        $CONDA/envs/condaenv/bin/pip install --timeout=120 .
-        $CONDA/bin/pip install pytest
+        pip install --timeout=120 .
+        pip install pytest
 
     - name: All unit tests
       env:
         TERRIER_VERSION: ${{ matrix.terrier }}
       run: |
-        $CONDA/envs/condaenv/bin/pytest
+        pytest
