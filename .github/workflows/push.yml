@@ -1,17 +1,13 @@
 name: Test Python package
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+on: [push, pull_request]
 
 jobs:
   build:
     
     strategy:
       matrix:
-        python-version: [3.8]
+        python: [3.8]
         java: [13]
         os: ['ubuntu-latest'] # 
         architecture: ['x64']
@@ -20,34 +16,35 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
 
-    - name: Setup dependencies for xgBoost on macOs-latest
-      if: matrix.os == 'macOs-latest'
-      run: |
-        brew install libomp
-
     - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
-      with:
-        python-version: ${{ matrix.python-version }}
-    
+
     - name: Setup java
       uses: actions/setup-java@v1
       with:
         java-version: ${{ matrix.java }}
         architecture: ${{ matrix.architecture }}
 
+    - name: Setup conda
+      uses: s-weigand/setup-conda@v1
+      with:
+        python-version: ${{ matrix.python }}
+        conda-channels: anaconda, conda-forge
+        activate-conda: true
+
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install faiss-gpu==1.7.1
+        conda install pip
+        conda install mkl_fft -y
+        conda install -c pytorch faiss-cpu=1.6.3
+        pip install --upgrade git+https://github.com/terrier-org/pyterrier.git#egg=python-terrier
         pip install -r requirements.txt
         #install this software
         pip install --timeout=120 .
         pip install pytest
+        conda list
 
     - name: All unit tests
       env:
         TERRIER_VERSION: ${{ matrix.terrier }}
       run: |
-        pytest
+        pytest -s

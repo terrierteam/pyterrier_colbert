@@ -247,6 +247,7 @@ class ColBERTFactory():
         except:
             warn("Faiss not installed. You cannot do retrieval")
         self.faiss_index_on_gpu = True
+        self.gpu = True
         if not gpu:
             self.faiss_index_on_gpu = False
             warn("Gpu disabled, YMMV")
@@ -254,6 +255,7 @@ class ColBERTFactory():
             import colbert.evaluation.load_model
             import colbert.modeling.colbert
             colbert.parameters.DEVICE = colbert.evaluation.load_model.DEVICE = colbert.modeling.colbert.DEVICE = torch.device("cpu")
+            self.gpu = False
         if isinstance (colbert_model, str):
             args.checkpoint = colbert_model
             args.colbert, args.checkpoint = load_model(args)
@@ -489,9 +491,9 @@ class ColBERTFactory():
             if "query_weights" in qid_group.columns:
                 weights = qid_group.iloc[0].query_weights
             if batch_size > 0:
-                scores = rrm.our_rerank_with_embeddings_batched(qid_group.iloc[0]["query_embs"], docids, weights, batch_size=batch_size)
+                scores = rrm.our_rerank_with_embeddings_batched(qid_group.iloc[0]["query_embs"], docids, weights, batch_size=batch_size, gpu=self.gpu)
             else:
-                scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights)
+                scores = rrm.our_rerank_with_embeddings(qid_group.iloc[0]["query_embs"], docids, weights, gpu=self.gpu)
             qid_group["score"] = scores
             if "docno" not in qid_group.columns and add_docnos:
                 qid_group = self._add_docnos(qid_group)
