@@ -4,6 +4,8 @@ import tempfile
 class TestIndexing(unittest.TestCase):
 
     def test_indexing_1doc(self):
+        #minimum test case size is 100 docs, 40 Wordpiece tokens
+        import pyterrier as pt
         from pyterrier_colbert.indexing import ColBERTIndexer
         checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
         import os
@@ -13,11 +15,8 @@ class TestIndexing(unittest.TestCase):
             chunksize=3,
             gpu=False)
 
-        indexer.index([
-            {
-            "docno" : "d%d" % i,
-            "text": "professor proton mixed the chemicals"
-            } for i in range(100) ])
+        iter = pt.get_dataset("vaswani").get_corpus_iter()
+        indexer.index([ next(iter) for i in range(100) ])
             
         factory = indexer.ranking_factory()
 
