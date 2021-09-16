@@ -13,11 +13,12 @@ class TestIndexing(unittest.TestCase):
             chunksize=3,
             gpu=False)
 
-        indexer.index([{
-            "docno" : "d1",
+        indexer.index([
+            {
+            "docno" : "d%d" % i,
             "text": "professor proton mixed the chemicals"
-        }])
-
+            } for i in range(100) ])
+            
         factory = indexer.ranking_factory()
 
 
