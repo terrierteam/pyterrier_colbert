@@ -16,7 +16,7 @@ class TestIndexing(unittest.TestCase):
             gpu=False)
 
         iter = pt.get_dataset("vaswani").get_corpus_iter()
-        indexer.index([ next(iter) for i in range(100) ])
+        indexer.index([ next(iter) for i in range(200) ])
             
         factory = indexer.ranking_factory()
 
