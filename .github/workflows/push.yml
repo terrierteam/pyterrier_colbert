@@ -26,15 +26,16 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        $CONDA/bin/conda install pip
-        $CONDA/bin/conda install -c pytorch faiss-cpu
-        $CONDA/bin/pip install -r requirements.txt
+        $CONDA/bin/conda create -n condaenv python=${{ matrix.python }}
+        $CONDA/envs/condaenv/bin/conda install pip
+        $CONDA/envs/condaenv/bin/conda install -c pytorch faiss-cpu
+        $CONDA/envs/condaenv/bin/pip install -r requirements.txt
         #install this software
-        $CONDA/bin/pip install --timeout=120 .
+        $CONDA/envs/condaenv/bin/pip install --timeout=120 .
         $CONDA/bin/pip install pytest
 
     - name: All unit tests
       env:
         TERRIER_VERSION: ${{ matrix.terrier }}
       run: |
-        $CONDA/bin/pytest
+        $CONDA/envs/condaenv/bin/pytest
