@@ -29,6 +29,10 @@ class TestIndexing(unittest.TestCase):
             dfOut = factory.prf(True).search("chemical reactions")
             self.assertTrue(len(dfOut) > 0)
 
+            dfOut = factory.ann_retrieve_score().search("chemical reactions")
+            self.assertTrue(len(dfOut) > 0)
+            self.assertTrue("score" in dfOut.columns)
+
 
     def setUp(self):
         import pyterrier as pt
