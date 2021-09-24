@@ -30,13 +30,13 @@ class TestIndexing(unittest.TestCase):
                 (factory.ann_retrieve_score() , True, "approx"),
                 ((
                     factory.query_encoder() 
-                    >> pruning.query_embedding_pruning_first(factory, 9) 
+                    >> pruning.query_embedding_pruning_first(factory, 8) 
                     >> factory.set_retrieve(query_encoded=True)
                     >> factory.index_scorer(query_encoded=False) 
                     ), True, "QEP first"),
                 ((
                     factory.query_encoder() 
-                    >> pruning.query_embedding_pruning(factory, 9) 
+                    >> pruning.query_embedding_pruning(factory, 8) 
                     >> factory.set_retrieve(query_encoded=True)
                     >> factory.index_scorer(query_encoded=False) 
                     ), True, "QEP ICF"),

@@ -13,7 +13,7 @@ def _filter_query(query_toks_df : pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame([rtr], columns=["qid", "query", "query_embs", "query_toks"]) 
 
 def _query_embedding_pruning_generic(function, cutoff : int, icf : bool = True, verbose : bool = False) -> TransformerBase:
-    return (pt.apply.query(function, verbose=verbose) % cutoff) >> pt.apply.by_query(_filter_query, add_ranks=False)
+    return (pt.apply.by_query(function, verbose=verbose, add_ranks=True) % cutoff) >> pt.apply.by_query(_filter_query, add_ranks=False)
 
 def query_embedding_pruning(factory : ColBERTFactory, cutoff : int, icf : bool = True, verbose : bool = False) -> TransformerBase:
     """
