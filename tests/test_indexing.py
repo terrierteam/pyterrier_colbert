@@ -22,39 +22,39 @@ class TestIndexing(unittest.TestCase):
             
         for factory in [indexer.ranking_factory()]:
 
-            for pipe, has_score in [
-                (factory.end_to_end(), True),
-                (factory.prf(False), True),
-                (factory.prf(True), True),
-                (factory.set_retrieve(), False),
-                (factory.ann_retrieve_score() , True),
+            for pipe, has_score, name in [
+                (factory.end_to_end(), True, "E2E"),
+                (factory.prf(False), True, "PRF rank"),
+                (factory.prf(True), True, "PRF rerank"),
+                (factory.set_retrieve(), False, "set_retrieve"),
+                (factory.ann_retrieve_score() , True, "approx"),
                 ((
                     factory.query_encoder() 
                     >> pruning.query_embedding_pruning_first(factory, 9) 
                     >> factory.set_retrieve(query_encoded=True)
                     >> factory.index_scorer(query_encoded=False) 
-                    ), True),
+                    ), True, "QEP first"),
                 ((
                     factory.query_encoder() 
                     >> pruning.query_embedding_pruning(factory, 9) 
                     >> factory.set_retrieve(query_encoded=True)
                     >> factory.index_scorer(query_encoded=False) 
-                    ), True),
+                    ), True, "QEP ICF"),
                 ((
                     factory.query_encoder() 
                     >> pruning.query_embedding_pruning_special(CLS=True) 
                     >> factory.set_retrieve(query_encoded=True)
                     >> factory.index_scorer(query_encoded=False) 
-                    ), True),
+                    ), True, "QEP CLS"),
             ]:
-                dfOut = pipe.search("chemical reactions")
-                
-                self.assertTrue(len(dfOut) > 0)
-                
-                if has_score:
-                    self.assertTrue("score" in dfOut.columns)
-                else:
-                    self.assertFalse("score" in dfOut.columns)
+                with self.subTest(name):
+                    dfOut = pipe.search("chemical reactions")                
+                    self.assertTrue(len(dfOut) > 0)
+                    
+                    if has_score:
+                        self.assertTrue("score" in dfOut.columns)
+                    else:
+                        self.assertFalse("score" in dfOut.columns)
 
             dfOut = factory.end_to_end().search("chemical reactions")
             self.assertTrue(len(dfOut) > 0)
