@@ -475,9 +475,9 @@ class ColBERTFactory():
             qid_group.sort_values("docid", inplace=True)
             docids = qid_group["docid"].values
             if batch_size > 0:
-                scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids, batch_size=batch_size)
+                scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids, batch_size=batch_size, gpu=self.gpu)
             else:
-                scores = rrm.our_rerank(qid_group.iloc[0]["query"], docids)
+                scores = rrm.our_rerank(qid_group.iloc[0]["query"], docids, gpu=self.gpu)
             qid_group["score"] = scores
             if "docno" not in qid_group.columns and add_docnos:
                 qid_group = self._add_docnos(qid_group)
