@@ -116,6 +116,7 @@ def query_embedding_pruning_special(CLS=False, Q=False, MASK=False) -> Transform
     def row_rewriter(row):
         query_toks = row["query_toks"]
         final_mask =(query_toks > -1)
+        # These tokenids are hard-coded, and hence assume a BERT model.
         Q_mask=(query_toks == 1)
         CLS_mask=(query_toks == 101)
         MASK_mask=(query_toks == 103)
