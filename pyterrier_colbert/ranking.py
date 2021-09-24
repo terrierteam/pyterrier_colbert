@@ -523,7 +523,7 @@ class ColBERTFactory():
         Like set_retrieve(), uses the ColBERT FAISS index to retrieve documents, but scores them using the maxsim on the approximate
         (quantised) nearest neighbour scores. 
 
-        This method was first proposed in our CIKM 2021 paper, "On Approximate Nearest Neighbour Selection for Multi-Stage Dense Retrieval".
+        This method was first proposed in our CIKM 2021 paper.
 
         Parameters:
         - batch(bool): whether to process all queries at once. True not currently supported.
@@ -531,6 +531,11 @@ class ColBERTFactory():
         - faiss_depth(int): How many passage embeddings to retrieve for each query embedding, denoted as k' in the ColBERT paper. Defaults to 1000, as per the ColBERT paper.
         - verbose(bool): Display tqdm progress bar during retrieval
         - maxsim(bool): Whether to use approx maxsim (True) or approx sumsim (False). See our CIKM 2021 paper for more details. Default it True.
+
+        Reference:
+        
+        C. Macdonald, N. Tonellotto. On Approximate Nearest Neighbour Selection for Multi-Stage Dense Retrieval
+        In Proceedings of ICTIR CIKM.
         """
         #input: qid, query
         #OR
