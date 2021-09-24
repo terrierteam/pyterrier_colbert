@@ -23,7 +23,7 @@ class TestIndexing(unittest.TestCase):
         for factory in [indexer.ranking_factory()]:
 
             for pipe, has_score in [
-                (factory.end_to_end(), True)
+                (factory.end_to_end(), True),
                 (factory.prf(False), True),
                 (factory.prf(True), True),
                 (factory.set_retrieve(), False),
