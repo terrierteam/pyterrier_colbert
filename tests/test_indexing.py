@@ -48,6 +48,7 @@ class TestIndexing(unittest.TestCase):
                     ), True, "QEP CLS"),
             ]:
                 with self.subTest(name):
+                    print("Running subtest %s" % name)
                     dfOut = pipe.search("chemical reactions")                
                     self.assertTrue(len(dfOut) > 0)
                     
