@@ -5,6 +5,7 @@ import pandas as pd
 import pyterrier as pt
 from pyterrier import tqdm
 from pyterrier.transformer import TransformerBase
+from pyterrier.datasets import Dataset
 from typing import Union, Tuple
 import random
 from colbert.evaluation.load_model import load_model
