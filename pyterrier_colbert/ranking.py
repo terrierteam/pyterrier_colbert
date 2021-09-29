@@ -289,8 +289,8 @@ class ColBERTFactory():
             import os
             index_loc = os.path.dirname(folder)
             index_name = os.path.dirname(folder)
-            checkpoint = kwargs.get('checkpoint')
-            del(kwargs['checkpoint'])
+            checkpoint = kwargs.get('colbert_model')
+            del(kwargs['colbert_model'])
             return ColBERTFactory(checkpoint, index_loc, index_name, **kwargs)
         
         return _from_dataset(dataset, 
