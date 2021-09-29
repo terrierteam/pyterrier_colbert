@@ -592,7 +592,7 @@ class ColBERTFactory():
                 else:
                     all_scores, all_embedding_ids = self._faiss_index().search(Q_cpu_numpy, faiss_depth, verbose=verbose)
                 pid2score = defaultdict(float)
-                for qpos in range(len(ids)):
+                for qpos in range(ids.shape[1]):
                     scores = all_scores[qpos]
                     embedding_ids = all_embedding_ids[qpos]
                     if hasattr(self.faiss_index, 'emb2pid'):
