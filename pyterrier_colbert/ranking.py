@@ -296,7 +296,7 @@ class ColBERTFactory():
         return _from_dataset(dataset, 
                              variant=variant, 
                              version=version, 
-                             clz=_ColBERTFactoryconstruct)
+                             clz=_ColBERTFactoryconstruct, **kwargs)
         
     def _rrm(self):
         """
