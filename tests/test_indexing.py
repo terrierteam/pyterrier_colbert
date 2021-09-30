@@ -17,8 +17,45 @@ class TestIndexing(unittest.TestCase):
 
         iter = pt.get_dataset("vaswani").get_corpus_iter()
         indexer.index([ next(iter) for i in range(200) ])
+
+        import pyterrier_colbert.pruning as pruning
             
         for factory in [indexer.ranking_factory()]:
+
+            for pipe, has_score, name in [
+                (factory.end_to_end(), True, "E2E"),
+                (factory.prf(False), True, "PRF rank"),
+                (factory.prf(True), True, "PRF rerank"),
+                (factory.set_retrieve(), False, "set_retrieve"),
+                (factory.ann_retrieve_score() , True, "approx"),
+                ((
+                    factory.query_encoder() 
+                    >> pruning.query_embedding_pruning_first(factory, 8) 
+                    >> factory.set_retrieve(query_encoded=True)
+                    >> factory.index_scorer(query_encoded=False) 
+                    ), True, "QEP first"),
+                ((
+                    factory.query_encoder() 
+                    >> pruning.query_embedding_pruning(factory, 8) 
+                    >> factory.set_retrieve(query_encoded=True)
+                    >> factory.index_scorer(query_encoded=False) 
+                    ), True, "QEP ICF"),
+                ((
+                    factory.query_encoder() 
+                    >> pruning.query_embedding_pruning_special(CLS=True) 
+                    >> factory.set_retrieve(query_encoded=True)
+                    >> factory.index_scorer(query_encoded=False) 
+                    ), True, "QEP CLS"),
+            ]:
+                with self.subTest(name):
+                    print("Running subtest %s" % name)
+                    dfOut = pipe.search("chemical reactions")                
+                    self.assertTrue(len(dfOut) > 0)
+                    
+                    if has_score:
+                        self.assertTrue("score" in dfOut.columns)
+                    else:
+                        self.assertFalse("score" in dfOut.columns)
 
             dfOut = factory.end_to_end().search("chemical reactions")
             self.assertTrue(len(dfOut) > 0)
@@ -28,6 +65,16 @@ class TestIndexing(unittest.TestCase):
 
             dfOut = factory.prf(True).search("chemical reactions")
             self.assertTrue(len(dfOut) > 0)
+
+            dfOut = factory.ann_retrieve_score().search("chemical reactions")
+            self.assertTrue(len(dfOut) > 0)
+            self.assertTrue("score" in dfOut.columns)
+
+            dfOut = factory.ann_retrieve_score().search("chemical reactions")
+            self.assertTrue(len(dfOut) > 0)
+            self.assertTrue("score" in dfOut.columns)
+
+
 
 
     def setUp(self):
