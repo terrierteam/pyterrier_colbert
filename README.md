@@ -78,7 +78,7 @@ where 200 is the number of top-scored ANN candidates to forward for exact scorin
 
 
 ## Demos
- - vaswani.ipy - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
+ - vaswani.ipynb - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
  - colbertprf-msmarco-passages.ipynb - [[Github](colbertprf-msmarco-passages.ipynb)] - demonstrates ColBERT PRF on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
  - cikm2021-demos.ipynb - [[Github](cikm2021-demos.ipynb)] - demonstrates ANN scoring and Query Embedding Pruning on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
  - colbert_text_and_explain.ipynb - [[Github](colbert_text_and_explain.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/colbert_text_and_explain.ipynb)] - demonstrates using a ColBERT model for scoring text, and for explaining an interaction. If you use one of these interaction diagrams, please cite [Macdonald21].
