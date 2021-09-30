@@ -541,7 +541,7 @@ class ColBERTFactory():
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer(query_encoded=True)
 
-    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True) -> TransformerBase:
+    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True) -> TransformerBase:
         """
         Like set_retrieve(), uses the ColBERT FAISS index to retrieve documents, but scores them using the maxsim on the approximate
         (quantised) nearest neighbour scores. 
@@ -553,7 +553,9 @@ class ColBERTFactory():
         - query_encoded(bool): whether to apply the ColBERT model to encode the queries. Defaults to false.
         - faiss_depth(int): How many passage embeddings to retrieve for each query embedding, denoted as k' in the ColBERT paper. Defaults to 1000, as per the ColBERT paper.
         - verbose(bool): Display tqdm progress bar during retrieval
-        - maxsim(bool): Whether to use approx maxsim (True) or approx sumsim (False). See our CIKM 2021 paper for more details. Default it True.
+        - maxsim(bool): Whether to use approx maxsim (True) or approx sumsim (False). See our CIKM 2021 paper for more details. Default is True.
+        - add_ranks(bool): Whether to use add the rank column, to allow rank cutoffs to be applied. Default is True. Response time will be enhanced if False.
+        
 
         Reference:
         
@@ -614,7 +616,7 @@ class ColBERTFactory():
 
             #TODO this _add_docnos shouldnt be needed
             return self._add_docnos( pt.model.add_ranks(pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs'])) )
-        t = pt.apply.by_query(_single_retrieve, add_ranks=False, verbose=verbose)
+        t = pt.apply.by_query(_single_retrieve, add_ranks=add_ranks, verbose=verbose)
         import types
         def __reduce_ex__(t2, proto):
             kwargs = { 'batch':batch, 'query_encoded': query_encoded, 'faiss_depth' : faiss_depth, 'maxsim': maxsim}
