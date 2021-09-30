@@ -56,13 +56,31 @@ If you use ColBERT PRF in your research, you must cite our ICTIR 2021 paper (cit
 
 All of our results files are available from the paper's [Virtual Appendix](https://github.com/Xiao0728/ColBERT-PRF-VirtualAppendix).
 
-## Coming Soon
+## Approximate ANN Scoring and Query Emebdding Pruning
 
-This repository will shorly be updated with code to apply the techniques of query embedding pruning [Tonellotto21] and approximate ANN ranking [Macdonald21a].
+This repository contains code to apply the techniques of query embedding pruning [Tonellotto21] and approximate ANN ranking [Macdonald21a].
+
+Query Emebdding pruning can be applied using the following pipeline:
+```python
+qep_pipe5 = (factory.query_encoder() 
+            >> pyterrier_colbert.pruning.query_embedding_pruning(factory, 5) 
+            >> factory.set_retrieve(query_encoded=True)
+            >> factory.index_scorer(query_encoded=False)
+)
+```
+where 5 is the number of query embeddings based on collection frquency to retain.
+
+Approximate ANN scoring can be applied using the following pipeline:
+```python
+ann_pipe = (factory.ann_retrieve_score() % 200) >> factory.index_scorer(query_encoded=True)
+```
+where 200 is the number of top-scored ANN candidates to forward for exact scoring.
+
 
 ## Demos
  - vaswani.ipy - [[Github](vaswani.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/vaswani.ipynb)] - demonstrates end-to-end dense retrieval and indexing on the Vaswani corpus (~11k documents)
  - colbertprf-msmarco-passages.ipynb - [[Github](colbertprf-msmarco-passages.ipynb)] - demonstrates ColBERT PRF on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
+ - cikm2021-demos.ipynb - [[Github](cikm2021-demos.ipynb)] - demonstrates ANN scoring and Query Embedding Pruning on the TREC Deep Learning track (MSMARCO) passage ranking tasks.
  - colbert_text_and_explain.ipynb - [[Github](colbert_text_and_explain.ipynb)] [[Colab](https://colab.research.google.com/github/cmacdonald/pyterrier_colbert/blob/main/colbert_text_and_explain.ipynb)] - demonstrates using a ColBERT model for scoring text, and for explaining an interaction. If you use one of these interaction diagrams, please cite [Macdonald21].
 
 ## Resource Requirements
