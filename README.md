@@ -56,7 +56,7 @@ If you use ColBERT PRF in your research, you must cite our ICTIR 2021 paper (cit
 
 All of our results files are available from the paper's [Virtual Appendix](https://github.com/Xiao0728/ColBERT-PRF-VirtualAppendix).
 
-## Approximate ANN Scoring and Query Emebdding Pruning
+## Approximate ANN Scoring and Query Embedding Pruning
 
 This repository contains code to apply the techniques of query embedding pruning [Tonellotto21] and approximate ANN ranking [Macdonald21a].
 
