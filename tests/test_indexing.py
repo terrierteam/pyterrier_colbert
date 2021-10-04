@@ -1,18 +1,19 @@
 import unittest
 import pandas as pd
 import tempfile
+CHECKPOINT="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
 class TestIndexing(unittest.TestCase):
 
-    def test_indexing_1doc(self):
+    def _indexing_1doc(self, indexmgr):
         #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
         import pyterrier as pt
         from pyterrier_colbert.indexing import ColBERTIndexer
-        checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
         import os
         indexer = ColBERTIndexer(
-            checkpoint, 
+            CHECKPOINT, 
             os.path.dirname(self.test_dir),os.path.basename(self.test_dir), 
             chunksize=3,
+            indexmgr=indexmgr,
             gpu=False)
 
         iter = pt.get_dataset("vaswani").get_corpus_iter()
@@ -29,6 +30,29 @@ class TestIndexing(unittest.TestCase):
             dfOut = factory.prf(True).search("chemical reactions")
             self.assertTrue(len(dfOut) > 0)
 
+    # def test_indexing_1doc_numpy(self):
+    #     self._indexing_1doc('numpy')
+    
+    # def test_indexing_1doc_half(self):
+    #     self._indexing_1doc('half')
+
+    def indexing_empty(self):
+        #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
+        import pyterrier as pt
+        from pyterrier_colbert.indexing import ColBERTIndexer
+        checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
+        import os
+        indexer = ColBERTIndexer(
+            CHECKPOINT, 
+            os.path.dirname(self.test_dir),os.path.basename(self.test_dir), 
+            chunksize=3,
+            gpu=False)
+
+        iter = pt.get_dataset("vaswani").get_corpus_iter()
+        indexer.index([ next(iter) for i in range(200) ] +  [{"docno": "a", "text": ""}])
+    
+    def test_indexing_1doc_torch(self):
+        self._indexing_1doc('torch')    
 
     def setUp(self):
         import pyterrier as pt
