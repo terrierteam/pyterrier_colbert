@@ -5,6 +5,7 @@ import pandas as pd
 import pyterrier as pt
 from pyterrier import tqdm
 from pyterrier.transformer import TransformerBase
+from pyterrier.datasets import Dataset
 from typing import Union, Tuple
 import random
 from colbert.evaluation.load_model import load_model
@@ -275,6 +276,28 @@ class ColBERTFactory():
         self.rrm = None
         self.faiss_index = None
         
+    # allows a colbert index to be built from a dataset
+    def from_dataset(dataset : Union[str,Dataset], 
+            variant : str = None, 
+            version='latest',            
+            **kwargs):
+        
+        from pyterrier.batchretrieve import _from_dataset
+        
+        #colbertfactory doesnt match quite the expectations, so we can use a wrapper fb
+        def _ColBERTFactoryconstruct(folder, **kwargs):
+            import os
+            index_loc = os.path.dirname(folder)
+            index_name = os.path.basename(folder)
+            checkpoint = kwargs.get('colbert_model')
+            del(kwargs['colbert_model'])
+            return ColBERTFactory(checkpoint, index_loc, index_name, **kwargs)
+        
+        return _from_dataset(dataset, 
+                             variant=variant, 
+                             version=version, 
+                             clz=_ColBERTFactoryconstruct, **kwargs)
+        
     def _rrm(self):
         """
         Returns an instance of the re_ranker_mmap class.
@@ -347,6 +370,10 @@ class ColBERTFactory():
         return self.faiss_index
 
     def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, docnos=False) -> TransformerBase:
+        """
+        Performs ANN retrieval, but the retrieval forms a set - i.e. there is no score attribute. Number of documents retrieved
+        is indirectly controlled by the faiss_depth parameters (denoted as k' in the original ColBERT paper).
+        """
         #input: qid, query
         #OR
         #input: qid, query, query_embs, query_toks, query_weights
@@ -471,9 +498,9 @@ class ColBERTFactory():
             qid_group.sort_values("docid", inplace=True)
             docids = qid_group["docid"].values
             if batch_size > 0:
-                scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids, batch_size=batch_size)
+                scores = rrm.our_rerank_batched(qid_group.iloc[0]["query"], docids, batch_size=batch_size, gpu=self.gpu)
             else:
-                scores = rrm.our_rerank(qid_group.iloc[0]["query"], docids)
+                scores = rrm.our_rerank(qid_group.iloc[0]["query"], docids, gpu=self.gpu)
             qid_group["score"] = scores
             if "docno" not in qid_group.columns and add_docnos:
                 qid_group = self._add_docnos(qid_group)
@@ -513,6 +540,95 @@ class ColBERTFactory():
         #input: qid, query, 
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer(query_encoded=True)
+
+    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True) -> TransformerBase:
+        """
+        Like set_retrieve(), uses the ColBERT FAISS index to retrieve documents, but scores them using the maxsim on the approximate
+        (quantised) nearest neighbour scores. 
+
+        This method was first proposed in our CIKM 2021 paper.
+
+        Parameters:
+        - batch(bool): whether to process all queries at once. True not currently supported.
+        - query_encoded(bool): whether to apply the ColBERT model to encode the queries. Defaults to false.
+        - faiss_depth(int): How many passage embeddings to retrieve for each query embedding, denoted as k' in the ColBERT paper. Defaults to 1000, as per the ColBERT paper.
+        - verbose(bool): Display tqdm progress bar during retrieval
+        - maxsim(bool): Whether to use approx maxsim (True) or approx sumsim (False). See our CIKM 2021 paper for more details. Default is True.
+        - add_ranks(bool): Whether to use add the rank column, to allow rank cutoffs to be applied. Default is True. Response time will be enhanced if False.
+        
+
+        Reference:
+        
+        C. Macdonald, N. Tonellotto. On Approximate Nearest Neighbour Selection for Multi-Stage Dense Retrieval
+        In Proceedings of ICTIR CIKM.
+        """
+        #input: qid, query
+        #OR
+        #input: qid, query, query_embs, query_toks, query_weights
+
+        #output: qid, query, docid, [docno], score, rank
+        #OR
+        #output: qid, query, query_embs, query_toks, query_weights, docid, [docno], score, rank
+        assert not batch
+        def _single_retrieve(queries_df):
+            rtr = []
+            iter = queries_df.itertuples()
+            iter = tqdm(iter, unit="q") if verbose else iter
+            for row in iter:
+                qid = row.qid
+                if query_encoded:
+                    embs = row.query_embs
+                    qtoks = row.query_toks
+                    ids = np.expand_dims(qtoks, axis=0)
+                    Q_cpu = embs.cpu()
+                    Q_cpu_numpy = embs.float().numpy()
+                else:
+                    with torch.no_grad():
+                        Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
+                    Q_f = Q[0:1, :, : ]
+                    Q_cpu = Q[0, :, :].cpu()
+                    Q_cpu_numpy = Q_cpu.float().numpy()
+                
+                if hasattr(self._faiss_index(), 'faiss_index'):
+                    all_scores, all_embedding_ids = self._faiss_index().faiss_index.search(Q_cpu_numpy, faiss_depth)
+                else:
+                    all_scores, all_embedding_ids = self._faiss_index().search(Q_cpu_numpy, faiss_depth, verbose=verbose)
+                pid2score = defaultdict(float)
+                for qpos in range(ids.shape[1]):
+                    scores = all_scores[qpos]
+                    embedding_ids = all_embedding_ids[qpos]
+                    if hasattr(self.faiss_index, 'emb2pid'):
+                        pids = self.faiss_index.emb2pid[embedding_ids]
+                    else:
+                        pids = np.searchsorted(self.faiss_index.doc_offsets, embedding_ids, side='right') - 1
+                    if maxsim:
+                        qpos_scores = defaultdict(float)
+                        for (score, pid) in zip(scores, pids):
+                            _pid = int(pid)
+                            qpos_scores[_pid] = max(qpos_scores[_pid], score)
+                        for (pid, score) in qpos_scores.items():
+                            pid2score[pid] += score
+                    else:
+                        for (score, pid) in zip(scores, pids):
+                            pid2score[int(pid)] += score
+                for pid, score in pid2score.items():
+                    rtr.append([qid, row.query, pid, score, ids[0], Q_cpu])
+
+            #TODO this _add_docnos shouldnt be needed
+            return self._add_docnos( pt.model.add_ranks(pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs'])) )
+        t = pt.apply.by_query(_single_retrieve, add_ranks=add_ranks, verbose=verbose)
+        import types
+        def __reduce_ex__(t2, proto):
+            kwargs = { 'batch':batch, 'query_encoded': query_encoded, 'faiss_depth' : faiss_depth, 'maxsim': maxsim}
+            return (
+                ann_retrieve_score,
+                #self is the factory, and it will be serialised using its own __reduce_ex__ method
+                (self, [], kwargs),
+                None
+            )
+        t.__reduce_ex__ = types.MethodType(__reduce_ex__, t)
+        t.__getstate__ = types.MethodType(lambda t2 : None, t)
+        return t
 
     def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
         """
