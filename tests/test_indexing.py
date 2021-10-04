@@ -13,7 +13,7 @@ class TestIndexing(unittest.TestCase):
             CHECKPOINT, 
             os.path.dirname(self.test_dir),os.path.basename(self.test_dir), 
             chunksize=3,
-            indexmgr=indexmgr,
+            #indexmgr=indexmgr,
             gpu=False)
 
         iter = pt.get_dataset("vaswani").get_corpus_iter()
