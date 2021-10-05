@@ -41,8 +41,31 @@ from warnings import warn
 
 DEBUG=False
 
+class TorchStorageIndexManager(IndexManager):
+    """
+    A ColBERT IndexManager for torch.HalfStorage, which support mmap
+    """
+
+    def save(self, tensor, output_file):
+        output_file = output_file.replace(".pt", ".store")
+        size = tensor.shape[0] * tensor.shape[1]
+        out_tensor = torch.HalfStorage.from_file(output_file, True, size)
+        torch.HalfTensor(out_tensor).copy_(tensor.view(-1))
+
+class NumpyIndexManager(IndexManager):
+    """
+    A ColBERT IndexManager for numpy files, which support both mmap and direct loading
+    """
+    def save(self, tensor, output_file):
+        import numpy as np
+        output_file = output_file.replace(".pt", ".npm")
+        memmap = np.memmap(output_file, dtype=np.uint64, mode='w+', shape=tensor.shape)
+        memmap[ : ] = tensor[ : ]
+        memmap.flush()
+        del(memmap)
+
 class CollectionEncoder():
-    def __init__(self, args, process_idx, num_processes):
+    def __init__(self, args, process_idx, num_processes, indexmgr=None):
         self.args = args
         self.collection = args.collection
         self.process_idx = process_idx
@@ -68,7 +91,13 @@ class CollectionEncoder():
         self.print_main(f"#> self.possible_subset_sizes = {self.possible_subset_sizes}")
 
         self._load_model()
-        self.indexmgr = IndexManager(args.dim)
+    
+        if indexmgr == 'numpy':
+            self.indexmgr = NumpyIndexManager(args.dim)
+        elif indexmgr == 'half':
+            self.indexmgr = TorchStorageIndexManager(args.dim)
+        else:
+            self.indexmgr = IndexManager(args.dim)
 
     def _initialize_iterator(self):
         return open(self.collection)
@@ -449,7 +478,7 @@ def merge_indices(index_root, index_name, num, faiss=True):
         """Re-count and sym-link ColBERT index files in src_dirs folders into
         a unified ColBERT index in dst_dir folder"""
         
-        FILE_PATTERNS = ["%d.pt", "%d.sample", "%d.tokenids", "doclens.%d.json"]
+        FILE_PATTERNS = ["%d.pt", "%d.store", "%d.np", "%d.sample", "%d.tokenids", "doclens.%d.json"]
         
         src_sizes = [count_parts(d) for d in src_dirs]
         
@@ -457,9 +486,10 @@ def merge_indices(index_root, index_name, num, faiss=True):
         for src_size, src_dir in zip(src_sizes, src_dirs):
             for i in range(src_size):
                 for file in FILE_PATTERNS:
-                    src_file = os.path.join(src_dir, file % i)
-                    dst_file = os.path.join(dst_dir, file % (offset + i))
-                    os.symlink(src_file, dst_file)
+                    if os.path.exists(src_file):
+                        src_file = os.path.join(src_dir, file % i)
+                        dst_file = os.path.join(dst_dir, file % (offset + i))
+                        os.symlink(src_file, dst_file)
             offset += src_size
 
     def make_new_faiss(index_root, index_name, **kwargs):
