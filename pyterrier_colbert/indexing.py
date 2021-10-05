@@ -43,7 +43,7 @@ DEBUG=False
 
 def get_parts_ext(directory):
     #extension of get_parts to check for other file types
-    extensions = ['.pt', '.np', '.store']
+    extensions = ['.pt', '.npy', '.store']
 
     parts=[]
     for ext in extensions:
@@ -71,7 +71,7 @@ def load_index_part_torchhalf(filename, verbose=True):
     return torch.load(filename)
 
 def load_index_part_numpy(filename):
-    filename = filename.replace(".pt", ".np")
+    filename = filename.replace(".pt", ".npy")
     #torch.from_numpy(np.memmap(file_path, dtype=np.uint64, mode='r'))
     return torch.from_numpy(np.load(filename))
 
@@ -92,7 +92,7 @@ class NumpyIndexManager(IndexManager):
     """
     def save(self, tensor, output_file):
         import numpy as np
-        output_file = output_file.replace(".pt", ".np")
+        output_file = output_file.replace(".pt", ".npy")
         np.save(output_file, tensor.detach().numpy())
         #memmap = np.memmap(output_file, dtype=np.float16, mode='w+', shape=tensor.shape)
         #memmap[ : ] = tensor[ : ]
@@ -130,12 +130,13 @@ class CollectionEncoder():
         if indexmgr == 'numpy':
             self.indexmgr = NumpyIndexManager(args.dim)
             import colbert.indexing.index_manager, colbert.indexing.loaders, colbert.indexing.faiss
-            colbert.indexing.faiss.load_index_part = colbert.indexing.index_manager.load_index_part = load_index_part_numpy
-            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext
-            
+            colbert.indexing.faiss.load_index_part = load_index_part_numpy
+            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext  
         elif indexmgr == 'half':
+            assert False
             self.indexmgr = TorchStorageIndexManager(args.dim)
         else:
+            colbert.indexing.faiss.load_index_part = colbert.indexing.index_manager.load_index_part
             self.indexmgr = IndexManager(args.dim)
 
     def _initialize_iterator(self):
