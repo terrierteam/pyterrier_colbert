@@ -73,7 +73,7 @@ def load_index_part_torchhalf(filename, verbose=True):
 def load_index_part_numpy(filename):
     filename = filename.replace(".pt", ".np")
     #torch.from_numpy(np.memmap(file_path, dtype=np.uint64, mode='r'))
-    return torch.from_numpy(np.load(filename, mode='r'))
+    return torch.from_numpy(np.load(filename))
 
 class TorchStorageIndexManager(IndexManager):
     """
