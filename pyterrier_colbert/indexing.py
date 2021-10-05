@@ -47,6 +47,8 @@ def get_parts_ext(directory):
 
     parts=[]
     for ext in extensions:
+        print([filename for filename in os.listdir(directory)])
+        print([filename for filename in os.listdir(directory) if filename.endswith(ext)])
         parts = sorted([int(filename[: -1 * len(ext)]) for filename in os.listdir(directory)
                         if filename.endswith(ext)])
         if len(parts) > 0:
@@ -54,7 +56,7 @@ def get_parts_ext(directory):
             print("Found %d index files with ext %s" % (len(parts), extension))
             break
     if len(parts) == 0:
-        raise ValueError("found no index embeddings files")
+        raise ValueError("found no index embedding files")
 
     assert list(range(len(parts))) == parts, parts
 
@@ -127,15 +129,16 @@ class CollectionEncoder():
 
         self._load_model()
     
+        import colbert.indexing.index_manager, colbert.indexing.loaders, colbert.indexing.faiss
         if indexmgr == 'numpy':
             self.indexmgr = NumpyIndexManager(args.dim)
-            import colbert.indexing.index_manager, colbert.indexing.loaders, colbert.indexing.faiss
             colbert.indexing.faiss.load_index_part = load_index_part_numpy
-            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext  
+            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext
         elif indexmgr == 'half':
             assert False
             self.indexmgr = TorchStorageIndexManager(args.dim)
         else:
+            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext
             colbert.indexing.faiss.load_index_part = colbert.indexing.index_manager.load_index_part
             self.indexmgr = IndexManager(args.dim)
 
