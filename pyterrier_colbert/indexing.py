@@ -254,8 +254,8 @@ class Object(object):
 
 class CollectionEncoder_Generator(CollectionEncoder):
 
-    def __init__(self, *args, prepend_title=False):
-        super().__init__(*args)
+    def __init__(self, *args, prepend_title=False, **kwargs):
+        super().__init__(*args, **kwargs)
         self.prepend_title = prepend_title
 
     def _initialize_iterator(self):
@@ -282,7 +282,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
 
 class ColBERTIndexer(IterDictIndexerBase):
-    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True, indexmgr='None'):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
@@ -310,6 +310,7 @@ class ColBERTIndexer(IterDictIndexerBase):
         self.prepend_title = prepend_title
         self.num_docs = num_docs
         self.gpu = gpu
+        self.indexmgr = indexmgr
         if not gpu:
             warn("Gpu disabled, YMMV")
             import colbert.parameters
@@ -348,7 +349,7 @@ class ColBERTIndexer(IterDictIndexerBase):
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        ceg = CollectionEncoderIds(self.args,0,1) if self.ids else CollectionEncoder_Generator(self.args,0,1)
+        ceg = CollectionEncoderIds(self.args,0,1, indexmgr=self.indexmgr) if self.ids else CollectionEncoder_Generator(self.args,0,1, indexmgr=self.indexmgr)
 
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
