@@ -41,6 +41,28 @@ from warnings import warn
 
 DEBUG=False
 
+def get_parts_ext(directory):
+    #extension of get_parts to check for other file types
+    extensions = ['.pt', '.np', '.store']
+
+    parts=[]
+    for extension in extensions:
+        parts = sorted([int(filename[: -1 * len(extension)]) for filename in os.listdir(directory)
+                        if filename.endswith(extension)])
+        if len(parts) > 0:
+            print("Found index files with ext %s" % extension)
+            break
+    if len(parts) == 0:
+        raise ValueError("found no index embeddings files")
+
+    assert list(range(len(parts))) == parts, parts
+
+    # Integer-sortedness matters.
+    parts_paths = [os.path.join(directory, '{}{}'.format(filename, extension)) for filename in parts]
+    samples_paths = [os.path.join(directory, '{}.sample'.format(filename)) for filename in parts]
+
+    return parts, parts_paths, samples_paths
+
 def load_index_part_torch(filename, verbose=True):
     mmap_storage = torch.HalfStorage.from_file(file_path, False, sum(self.doclens) * self.dim)
     return torch.HalfTensor(mmap_storage).view(sum(self.doclens), self.dim)
@@ -108,6 +130,9 @@ class CollectionEncoder():
             self.indexmgr = NumpyIndexManager(args.dim)
             import colbert.indexing.index_manager
             colbert.indexing.index_manager.load_index_part = load_index_part_numpy
+            import colbert.indexing.loaders
+            colbert.indexing.loaders.get_parts = get_parts_ext
+
         elif indexmgr == 'half':
             self.indexmgr = TorchStorageIndexManager(args.dim)
         else:
