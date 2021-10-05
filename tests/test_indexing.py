@@ -78,6 +78,35 @@ class TestIndexing(unittest.TestCase):
 
         iter = pt.get_dataset("vaswani").get_corpus_iter()
         indexer.index([ next(iter) for i in range(200) ] +  [{"docno": "a", "text": ""}])
+
+    def indexing_merged(self):
+        #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
+        import pyterrier as pt
+        from pyterrier_colbert.indexing import ColBERTIndexer, merge_indices
+        checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
+        import os
+        index_root = self.test_dir
+        indexer = ColBERTIndexer(
+            CHECKPOINT, 
+            index_root, "index_part_0", 
+            chunksize=3,
+            gpu=False)
+
+        iter = pt.get_dataset("vaswani").get_corpus_iter()
+        indexer.index([ next(iter) for i in range(200) ])
+        indexer = ColBERTIndexer(
+            CHECKPOINT, 
+            index_root, "index_part_1", 
+            chunksize=3,
+            gpu=False)
+
+        iter = pt.get_dataset("vaswani").get_corpus_iter()
+        indexer.index([ next(iter) for i in range(200) ])
+        
+        merge_indices(index_root, "index_part")
+        from pyterrier_colbert.ranking import ColBERTFactory
+        factory = ColBERTFactory(CHECKPOINT, index_root, "index_part", faiss_partitions=100, gpu=False)
+        self.assertEqual(400, len(factory.docid2docno))
     
     def test_indexing_1doc_torch(self):
         self._indexing_1doc('torch')

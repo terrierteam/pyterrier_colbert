@@ -420,3 +420,68 @@ class CollectionEncoderIds(CollectionEncoder_Generator):
 
         self.print("#> Joining saver thread.")
         thread.join()
+
+def merge_indices(index_root, index_name, num, faiss=True):
+    import os, glob, pickle, pyterrier as pt
+    """Merge num ColBERT indexes with common index_root folder filename and index_name
+       into a single ColBERT index (with symlinks)"""
+
+    def count_parts(src_dir):
+        """Counts how many .pt files are in src_dir folder"""
+        
+        return len(glob.glob1(src_dir, "*.pt"))
+
+    def merge_docnos(src_dirs, dst_dir):
+        """Merge docnos.pkl.gz files in src_dirs folders into 
+        a single docnos.pkl.gz file in dst_dir folder"""
+        
+        FILENAME = "docnos.pkl.gz"
+
+        docnos = []
+        for src_dir in src_dirs:
+            with pt.io.autoopen(os.path.join(src_dir, FILENAME), "rb") as f:
+                docnos += pickle.load(f)
+                
+        with pt.io.autoopen(os.path.join(dst_dir, FILENAME), "wb") as f:
+            pickle.dump(docnos, f)
+            
+    def merge_colbert_files(src_dirs, dst_dir):
+        """Re-count and sym-link ColBERT index files in src_dirs folders into
+        a unified ColBERT index in dst_dir folder"""
+        
+        FILE_PATTERNS = ["%d.pt", "%d.sample", "%d.tokenids", "doclens.%d.json"]
+        
+        src_sizes = [count_parts(d) for d in src_dirs]
+        
+        offset = 0
+        for src_size, src_dir in zip(src_sizes, src_dirs):
+            for i in range(src_size):
+                for file in FILE_PATTERNS:
+                    src_file = os.path.join(src_dir, file % i)
+                    dst_file = os.path.join(dst_dir, file % (offset + i))
+                    os.symlink(src_file, dst_file)
+            offset += src_size
+
+    def make_new_faiss(index_root, index_name, **kwargs):
+        import colbert.indexing.faiss
+        colbert.indexing.faiss.SPAN = 1
+        import pyterrier_colbert.indexing
+        from pyterrier_colbert.indexing import ColBERTIndexer
+        indexer = ColBERTIndexer(None, index_root, index_name, **kwargs)
+        indexer.args.sample = 0.001 # We resample the whole collection to avoid kernel deaths.
+                                    # The sample has shape (7874368, 128)
+                                    # Training take 1 min, everything else is disk activity (hours...)
+        colbert.indexing.faiss.index_faiss(indexer.args)
+  
+    src_dirs = [os.path.join(index_root, f"{index_name}_{i}") for i in range(num)]
+    dst_dir = os.path.join(index_root, index_name)
+    
+    try:
+        os.mkdir(dst_dir)
+    except FileExistsError:
+        pass
+    
+    merge_docnos(src_dirs, dst_dir)
+    merge_colbert_files(src_dirs, dst_dir)
+    if faiss:
+        make_new_faiss(index_root, index_name)
