@@ -63,7 +63,7 @@ class numpy_file_part_mmap:
         self.endpos = np.cumsum(self.doclens)
         self.startpos = self.endpos - self.doclens
         import numpy as np
-        self.mmap = torch.from_numpy(np.memmap(file_path, dtype=np.uint64, mode='r'))
+        self.mmap = torch.from_numpy(np.load(file_path, mmap_mode='r'))
         print(self.mmap.shape)
  
     def get_embedding(self, pid):
@@ -79,7 +79,7 @@ class numpy_file_part_mem:
         self.endpos = np.cumsum(self.doclens)
         self.startpos = self.endpos - self.doclens
         import numpy as np
-        self.mmap = torch.from_numpy(np.load(file_path, dtype=np.uint64, mode='r'))
+        self.mmap = torch.from_numpy(np.load(file_path))
         print(self.mmap.shape)
  
     def get_embedding(self, pid):

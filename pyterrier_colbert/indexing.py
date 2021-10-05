@@ -46,11 +46,12 @@ def get_parts_ext(directory):
     extensions = ['.pt', '.np', '.store']
 
     parts=[]
-    for extension in extensions:
-        parts = sorted([int(filename[: -1 * len(extension)]) for filename in os.listdir(directory)
-                        if filename.endswith(extension)])
+    for ext in extensions:
+        parts = sorted([int(filename[: -1 * len(ext)]) for filename in os.listdir(directory)
+                        if filename.endswith(ext)])
         if len(parts) > 0:
-            print("Found index files with ext %s" % extension)
+            extension = ext
+            print("Found %d index files with ext %s" % (len(parts), extension))
             break
     if len(parts) == 0:
         raise ValueError("found no index embeddings files")
@@ -60,7 +61,6 @@ def get_parts_ext(directory):
     # Integer-sortedness matters.
     parts_paths = [os.path.join(directory, '{}{}'.format(filename, extension)) for filename in parts]
     samples_paths = [os.path.join(directory, '{}.sample'.format(filename)) for filename in parts]
-
     return parts, parts_paths, samples_paths
 
 def load_index_part_torch(filename, verbose=True):
@@ -73,7 +73,7 @@ def load_index_part_torchhalf(filename, verbose=True):
 def load_index_part_numpy(filename):
     filename = filename.replace(".pt", ".np")
     #torch.from_numpy(np.memmap(file_path, dtype=np.uint64, mode='r'))
-    return torch.from_numpy(np.load(filename, dtype=np.float16, mode='r'))
+    return torch.from_numpy(np.load(filename, mode='r'))
 
 class TorchStorageIndexManager(IndexManager):
     """
@@ -92,11 +92,12 @@ class NumpyIndexManager(IndexManager):
     """
     def save(self, tensor, output_file):
         import numpy as np
-        output_file = output_file.replace(".pt", ".npm")
-        memmap = np.memmap(output_file, dtype=np.float16, mode='w+', shape=tensor.shape)
-        memmap[ : ] = tensor[ : ]
-        memmap.flush()
-        del(memmap)
+        output_file = output_file.replace(".pt", ".np")
+        np.save(output_file, tensor.detach().numpy())
+        #memmap = np.memmap(output_file, dtype=np.float16, mode='w+', shape=tensor.shape)
+        #memmap[ : ] = tensor[ : ]
+        #memmap.flush()
+        #del(memmap)
 
 class CollectionEncoder():
     def __init__(self, args, process_idx, num_processes, indexmgr=None):
@@ -128,11 +129,10 @@ class CollectionEncoder():
     
         if indexmgr == 'numpy':
             self.indexmgr = NumpyIndexManager(args.dim)
-            import colbert.indexing.index_manager
-            colbert.indexing.index_manager.load_index_part = load_index_part_numpy
-            import colbert.indexing.loaders
-            colbert.indexing.loaders.get_parts = get_parts_ext
-
+            import colbert.indexing.index_manager, colbert.indexing.loaders, colbert.indexing.faiss
+            colbert.indexing.faiss.load_index_part = colbert.indexing.index_manager.load_index_part = load_index_part_numpy
+            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext
+            
         elif indexmgr == 'half':
             self.indexmgr = TorchStorageIndexManager(args.dim)
         else:
