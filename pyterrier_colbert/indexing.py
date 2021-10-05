@@ -51,7 +51,7 @@ def load_index_part_torchhalf(filename, verbose=True):
 def load_index_part_numpy(filename):
     filename = filename.replace(".pt", ".np")
     #torch.from_numpy(np.memmap(file_path, dtype=np.uint64, mode='r'))
-    return torch.from_numpy(np.load(filename, dtype=np.uint64, mode='r'))
+    return torch.from_numpy(np.load(filename, dtype=np.float16, mode='r'))
 
 class TorchStorageIndexManager(IndexManager):
     """
@@ -71,7 +71,7 @@ class NumpyIndexManager(IndexManager):
     def save(self, tensor, output_file):
         import numpy as np
         output_file = output_file.replace(".pt", ".npm")
-        memmap = np.memmap(output_file, dtype=np.uint64, mode='w+', shape=tensor.shape)
+        memmap = np.memmap(output_file, dtype=np.float16, mode='w+', shape=tensor.shape)
         memmap[ : ] = tensor[ : ]
         memmap.flush()
         del(memmap)
