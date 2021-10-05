@@ -106,8 +106,8 @@ class TestIndexing(unittest.TestCase):
     def test_indexing_1doc_torch_mem(self):
         self._indexing_1doc('torch', "mem")
 
-    def test_indexing_1doc_torch_mem(self):
-        self._indexing_1doc('half', "mmap")
+    # def test_indexing_1doc_torch_mem(self):
+    #     self._indexing_1doc('half', "mmap")
 
     def test_indexing_1doc_numpy(self):
         self._indexing_1doc('numpy', 'numpy')

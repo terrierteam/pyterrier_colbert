@@ -41,6 +41,18 @@ from warnings import warn
 
 DEBUG=False
 
+def load_index_part_torch(filename, verbose=True):
+    mmap_storage = torch.HalfStorage.from_file(file_path, False, sum(self.doclens) * self.dim)
+    return torch.HalfTensor(mmap_storage).view(sum(self.doclens), self.dim)
+
+def load_index_part_torchhalf(filename, verbose=True):
+    return torch.load(filename)
+
+def load_index_part_numpy(filename):
+    filename = filename.replace(".pt", ".np")
+    #torch.from_numpy(np.memmap(file_path, dtype=np.uint64, mode='r'))
+    return torch.from_numpy(np.load(filename, dtype=np.uint64, mode='r'))
+
 class TorchStorageIndexManager(IndexManager):
     """
     A ColBERT IndexManager for torch.HalfStorage, which support mmap
@@ -94,6 +106,8 @@ class CollectionEncoder():
     
         if indexmgr == 'numpy':
             self.indexmgr = NumpyIndexManager(args.dim)
+            import colbert.indexing.index_manager
+            colbert.indexing.index_manager.load_index_part = load_index_part_numpy
         elif indexmgr == 'half':
             self.indexmgr = TorchStorageIndexManager(args.dim)
         else:
