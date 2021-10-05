@@ -83,6 +83,9 @@ class TorchStorageIndexManager(IndexManager):
     """
 
     def save(self, tensor, output_file):
+        if not output_file.endswith(".pt"):
+            # for .ids, .sample etc, resort to torch.save
+            return super().save(tensor, output_file)
         output_file = output_file.replace(".pt", ".store")
         size = tensor.shape[0] * tensor.shape[1]
         out_tensor = torch.HalfStorage.from_file(output_file, True, size)
@@ -93,6 +96,9 @@ class NumpyIndexManager(IndexManager):
     A ColBERT IndexManager for numpy files, which support both mmap and direct loading
     """
     def save(self, tensor, output_file):
+        if not output_file.endswith(".pt"):
+            # for .ids, .sample etc, resort to torch.save
+            return super().save(tensor, output_file)
         import numpy as np
         output_file = output_file.replace(".pt", ".npy")
         np.save(output_file, tensor.detach().numpy())
