@@ -94,9 +94,18 @@ You will need a GPU to use this. Preferable more than one. You will also need lo
 
 ## Installation
 
-ColBERT requires FAISS, namely the faiss-gpu package, to be installed. `pip install faiss-gpu` does **NOT** usually work.
+This package can be installed using Pip, and then used with PyTerrier. See also the examples notebooks.
+
+```shell
+pip install -q git+https://github.com/terrierteam/pyterrier_colbert.git
+conda install -c pytorch faiss-gpu=1.6.3 # or faiss-cpu
+#on Colab: pip install faiss-gpu==1.6.3 
+```
+
+NB: ColBERT requires FAISS, namely the faiss-gpu package, to be installed. `pip install faiss-gpu` does **NOT** usually work.
 FAISS [recommends using Anaconda](https://github.com/facebookresearch/faiss/blob/master/INSTALL.md) to install faiss-gpu.
 On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.3, not 1.7.0.
+
 
 
 ## References
