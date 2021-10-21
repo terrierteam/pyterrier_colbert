@@ -98,8 +98,8 @@ This package can be installed using Pip, and then used with PyTerrier. See also 
 
 ```shell
 pip install -q git+https://github.com/terrierteam/pyterrier_colbert.git
-conda install -c pytorch faiss-gpu=1.6.3 # or faiss-cpu
-#on Colab: pip install faiss-gpu==1.6.3 
+conda install -c pytorch faiss-gpu=1.6.5 # or faiss-cpu
+#on Colab: pip install faiss-gpu==1.6.5
 ```
 
 NB: ColBERT requires FAISS, namely the faiss-gpu package, to be installed. `pip install faiss-gpu` does **NOT** usually work.
