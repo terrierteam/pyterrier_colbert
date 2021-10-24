@@ -345,7 +345,9 @@ class ColBERTFactory():
                 return pd.Series([Q[0], ids[0]])
             
         def row_apply(df):
-            df[["query_embs", "query_toks"]] = df.apply(_encode_query, axis=1)
+            # To avoid pandas warning: A value is trying to be set on a copy of a slice from a DataFrame.
+            df = df.assign(query_embs= df.apply(_encode_query, axis=1).loc[:, 0],
+                          query_toks= df.apply(_encode_query, axis=1).loc[:, 1])
             return df
         
         return pt.apply.generic(row_apply)

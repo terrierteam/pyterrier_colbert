@@ -231,23 +231,26 @@ def blacklisted_tokens_transformer(factory, blacklist, verbose=False) -> Transfo
         import torch
         
         tokens = row['doc_toks']
+        embeddings = row['doc_embs']
         final_mask = (tokens > -1)
         
         for element in blacklist:
             element_mask = (tokens == element)
             final_mask = final_mask & (~ element_mask)
         
-        row_embs_size = row['doc_embs'].size()
+        row_embs_size = embeddings.size()
         
         mask_1d = torch.cat((final_mask, torch.ones(row_embs_size[0] - final_mask.size()[0], dtype=torch.bool)))
         mask_column = torch.unsqueeze(mask_1d, 1)
         mask = mask_column.repeat(1, row_embs_size[1])
         
-        row['doc_embs'] = row['doc_embs'][mask].reshape(mask_1d.count_nonzero(), row_embs_size[1])
+        row['doc_embs'] = embeddings[mask].reshape(mask_1d.count_nonzero(), row_embs_size[1])
         row['doc_toks'] = tokens[final_mask]
 
         pruned_embeddings = row_embs_size[0] - row['doc_embs'].size()[0]
-        if verbose: print("Embeddings removed:", pruned_embeddings)
+        pruned_embeddings_percentage = round(pruned_embeddings/row_embs_size[0] * 100, 2)
+        if verbose: 
+            print("Embeddings removed:", pruned_embeddings, '(', pruned_embeddings_percentage, '%)')
         # factory.pruned_embeddings += pruned_embeddings
         return row
 
