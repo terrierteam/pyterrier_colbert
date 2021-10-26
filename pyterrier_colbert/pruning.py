@@ -168,22 +168,6 @@ def fetch_index_encodings(factory, verbose=False, ids=False) -> TransformerBase:
         rtr = rtr >> pt.apply.by_query(_get_tok_ids, add_ranks=False)
     return rtr
 
-def pca_transformer(factory, pca, verbose=False) -> TransformerBase:
-    """
-    Apply a PCA model to the queries and documents embeddings to compress it
-    input: qid, query_embs, docno, doc_embs
-    output: qid, query_embs, docno, doc_embs
-    """
-    import torch
-    def _apply_pca(df):
-        iter = range(len(df))
-        df["doc_embs"] = df["doc_embs"].map(lambda x : torch.from_numpy(pca.transform(x)).type(torch.float32))
-        df["query_embs"] = df["query_embs"].map(lambda x : torch.from_numpy(pca.transform(x)).type(torch.float32))
-        factory.args.dim = pca.n_components
-        return df
-    
-    return pt.apply.by_query(_apply_pca, add_ranks=False)
-
 def scorer(factory, verbose=False) -> TransformerBase:
         """
         Calculates the ColBERT max_sim operator using previous encodings of queries and documents
@@ -214,44 +198,3 @@ def scorer(factory, verbose=False) -> TransformerBase:
             return df
             
         return pt.apply.by_query(_score_query)
-
-def blacklisted_tokens_transformer(factory, blacklist, verbose=False) -> TransformerBase:
-    """
-    Remove tokens and their embeddings from the document dataframe
-    input: qid, query_embs, docno, doc_embs, doc_toks
-    output: qid, query_embs, docno, doc_embs, doc_toks
-    
-    The blacklist parameters must contain a list of tokenids that should be removed
-    """
-    # factory.pruned_embeddings = 0
-    
-    import numpy as np
-    def _prune(row):
-        
-        import torch
-        
-        tokens = row['doc_toks']
-        embeddings = row['doc_embs']
-        final_mask = (tokens > -1)
-        
-        for element in blacklist:
-            element_mask = (tokens == element)
-            final_mask = final_mask & (~ element_mask)
-        
-        row_embs_size = embeddings.size()
-        
-        mask_1d = torch.cat((final_mask, torch.ones(row_embs_size[0] - final_mask.size()[0], dtype=torch.bool)))
-        mask_column = torch.unsqueeze(mask_1d, 1)
-        mask = mask_column.repeat(1, row_embs_size[1])
-        
-        row['doc_embs'] = embeddings[mask].reshape(mask_1d.count_nonzero(), row_embs_size[1])
-        row['doc_toks'] = tokens[final_mask]
-
-        pruned_embeddings = row_embs_size[0] - row['doc_embs'].size()[0]
-        pruned_embeddings_percentage = round(pruned_embeddings/row_embs_size[0] * 100, 2)
-        if verbose: 
-            print("Embeddings removed:", pruned_embeddings, '(', pruned_embeddings_percentage, '%)')
-        # factory.pruned_embeddings += pruned_embeddings
-        return row
-
-    return pt.apply.generic(lambda df : df.apply(_prune, axis=1))
