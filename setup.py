@@ -16,7 +16,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pyterrier-colbert",
-    version="0.0.1",
+    version="0.0.2.1",
     author="Craig Macdonald",
     author_email='craigm{at}.dcs.gla.ac.uk',
     description="PyTerrier components for ColBERT",
