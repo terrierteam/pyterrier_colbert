@@ -22,3 +22,20 @@ class TestIndexing(unittest.TestCase):
         rtr = scorer.transform(df)
         self.assertTrue("score" in rtr.columns)
 
+    def test_text_scorer_with_qembs(self):
+        from pyterrier_colbert.ranking import ColBERTFactory
+        checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
+        factory = ColBERTFactory(checkpoint, None, None, gpu=False)
+        df = pt.new.ranked_documents([[1, 2]])
+        df["text"] = [ "professor proton mixed the chemicals", "chemical brothers played that tune"]
+        df["query"] = ["chemical reactions", "chemical reactions"]
+        scorer = factory.text_scorer()
+        qe_scorer =  pt.transformer.SourceTransformer(df) >> factory.query_encoder() >> factory.text_scorer(query_encoded=True)  
+        rtr = scorer.transform(df)  
+        qe_rtr = qe_scorer.search(df["query"])
+        self.assertTrue("score" in rtr.columns)
+        self.assertTrue(rtr.equals(qe_rtr))
+
+
+
+
