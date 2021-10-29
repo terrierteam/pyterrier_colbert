@@ -275,6 +275,30 @@ class ColBERTFactory():
         #we load this lazily
         self.rrm = None
         self.faiss_index = None
+
+        #pruning field
+        self.pruning_info = {}
+
+    def add_pruning_info(self, doc_id, doc_len, embeddings_pruned):
+        self.pruning_info[doc_id] = {'doc_len': doc_len, 'embeddings_pruned': embeddings_pruned}
+        
+    def get_pruning_info(self):
+        total_embeddings = 0
+        total_prunings = 0
+        pruning_percentages = []
+        for key, value in self.pruning_info.items():
+            total_embeddings += value['doc_len']
+            total_prunings += value['embeddings_pruned']
+            pruning_percentages.append((key, value['embeddings_pruned']/value['doc_len']))
+        overall_percentage = round(total_prunings/total_embeddings * 100, 2)
+        max_pruned = max(pruning_percentages, key= lambda t: t[1])
+        min_pruned = min(pruning_percentages, key= lambda t: t[1])
+        max_pruned_str = '{:4} ({:4.2%})'.format(max_pruned[0], max_pruned[1])
+        min_pruned_str = '{:4} ({:4.2%})'.format(min_pruned[0], min_pruned[1])
+        import pandas as pd
+        df = pd.DataFrame(data = [[total_prunings, overall_percentage, max_pruned_str, min_pruned_str]],
+                        columns=['Total embedding pruned', 'Pruning %', 'Max Pruned Document', 'Min Pruned Document'])
+        return df
         
     # allows a colbert index to be built from a dataset
     def from_dataset(dataset : Union[str,Dataset], 
