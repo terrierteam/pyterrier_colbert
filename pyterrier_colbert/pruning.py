@@ -223,7 +223,6 @@ def blacklisted_tokens_transformer(factory, blacklist, verbose=False) -> Transfo
     
     The blacklist parameters must contain a list of tokenids that should be removed
     """
-    # factory.pruned_embeddings = 0
     
     import numpy as np
     def _prune(row):
@@ -232,6 +231,7 @@ def blacklisted_tokens_transformer(factory, blacklist, verbose=False) -> Transfo
         
         tokens = row['doc_toks']
         embeddings = row['doc_embs']
+        docid = row['docid']
         final_mask = (tokens > -1)
         
         for element in blacklist:
@@ -247,11 +247,12 @@ def blacklisted_tokens_transformer(factory, blacklist, verbose=False) -> Transfo
         row['doc_embs'] = embeddings[mask].reshape(mask_1d.count_nonzero(), row_embs_size[1])
         row['doc_toks'] = tokens[final_mask]
 
+
         pruned_embeddings = row_embs_size[0] - row['doc_embs'].size()[0]
-        pruned_embeddings_percentage = round(pruned_embeddings/row_embs_size[0] * 100, 2)
-        if verbose: 
-            print("Embeddings removed:", pruned_embeddings, '(', pruned_embeddings_percentage, '%)')
-        # factory.pruned_embeddings += pruned_embeddings
+        pruned_embeddings_percentage = pruned_embeddings/row_embs_size[0]
+        if verbose:
+            print('Embeddings removed from document {:10.0f}: {:10.0f} ({:10.2%})'.format(docid, pruned_embeddings, pruned_embeddings_percentage), end='\r')
+        factory.add_pruning_info(docid, row_embs_size[0], pruned_embeddings)
         return row
 
     return pt.apply.generic(lambda df : df.apply(_prune, axis=1))
