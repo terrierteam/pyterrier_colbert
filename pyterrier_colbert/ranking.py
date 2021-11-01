@@ -22,6 +22,8 @@ from collections import defaultdict
 import numpy as np
 import pickle
 from warnings import warn
+from pyterrier_colbert.pruning import InfoPruning
+
 
 class file_part_mmap:
     def __init__(self, file_path, file_doclens):
@@ -277,40 +279,11 @@ class ColBERTFactory():
         self.faiss_index = None
 
         #pruning field
-        self.pruning_info = {}
+        self.pruning_info = InfoPruning()
 
-    def add_pruning_info(self, query_id, doc_id, doc_len, embeddings_pruned):
-        self.pruning_info[query_id] = {
-            doc_id: {
-                'doc_len': doc_len, 
-                'embeddings_pruned': embeddings_pruned
-            }
-        }
-
-    def _get_pruning_info_per_query_data(self, query_id, query_data):
-        total_embeddings = 0
-        total_prunings = 0
-        pruning_percentages = []
-        for key, value in query_data.items():
-            total_embeddings += value['doc_len']
-            total_prunings += value['embeddings_pruned']
-            pruning_percentages.append((key, value['embeddings_pruned']/value['doc_len']))
-        overall_percentage = round(total_prunings/total_embeddings * 100, 2)
-        max_pruned = max(pruning_percentages, key= lambda t: t[1])
-        min_pruned = min(pruning_percentages, key= lambda t: t[1])
-        max_pruned_str = f'{max_pruned[0]:4} ({max_pruned[1]:4.2%})'
-        min_pruned_str = f'{min_pruned[0]:4} ({min_pruned[1]:4.2%})'
-        return [query_id, total_prunings, overall_percentage, max_pruned_str, min_pruned_str]
-    
-        
-    def get_pruning_info(self):
-        rows = []
-        for query_id, query_data in self.pruning_info.items():
-            row = self._get_pruning_info_per_query_id(query_id, query_data)
-            rows.append(row)
-        df = pd.DataFrame(data = rows,
-            columns=['Query ID', 'Total embedding pruned', 'Pruning %', 'Max Pruned Document', 'Min Pruned Document'])
-        return df
+    # pruning
+    def refresh_pruning_info(self):
+        self.pruning_info = InfoPruning()
         
     # allows a colbert index to be built from a dataset
     def from_dataset(dataset : Union[str,Dataset], 
