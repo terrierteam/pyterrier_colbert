@@ -253,7 +253,7 @@ def blacklisted_tokens_transformer(factory, blacklist, verbose=False) -> Transfo
         pruned_embeddings_percentage = pruned_embeddings/row_embs_size[0]
         if verbose:
             print(f'Embeddings removed from document {docid:10.0f}: {pruned_embeddings:10.0f} \t ({pruned_embeddings_percentage:10.2%})', end='\r')
-        factory.pruning.add_pruning_info(qid, docid, row_embs_size[0], pruned_embeddings) 
+        factory.pruning_info.add_pruning_info(qid, docid, row_embs_size[0], pruned_embeddings) 
         return row
 
     return pt.apply.generic(lambda df : df.apply(_prune, axis=1))
