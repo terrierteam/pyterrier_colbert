@@ -12,7 +12,7 @@ class InfoPruning:
         self.pruning_dataframes = []
         self.pruning_counter = 0
 
-    def add_pruning_info(self, query_id, doc_id, doc_len, embeddings_pruned, topics_len=93, n_docs=10):
+    def add_pruning_info(self, query_id, doc_id, doc_len, embeddings_pruned, topics_len, n_docs):
         self.pruning_info[query_id] = {
             doc_id: {
                 'doc_len': doc_len, 
