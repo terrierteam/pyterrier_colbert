@@ -1,11 +1,11 @@
 import unittest
 import tempfile
 from unittest.result import failfast
+import pyterrier as pt
 
 class TestIndexing(unittest.TestCase):
 
     def setUp(self):
-        import pyterrier as pt
         from pyterrier_colbert.ranking import ColBERTFactory
         if not pt.started():
             pt.init()
@@ -23,7 +23,7 @@ class TestIndexing(unittest.TestCase):
 
     def test_text_scorer_with_qembs(self):
         scorer = self.factory.text_scorer()
-        qe_scorer =  self.pt.transformer.SourceTransformer(self.df) >> self.factory.query_encoder() >> self.factory.text_scorer(query_encoded=True)  
+        qe_scorer =  pt.transformer.SourceTransformer(self.df) >> self.factory.query_encoder() >> self.factory.text_scorer(query_encoded=True)  
         rtr = scorer.transform(self.df)  
         qe_rtr = qe_scorer.search(self.df["query"])
         self.assertTrue("score" in rtr.columns)
