@@ -31,7 +31,6 @@ class InfoPruning:
             raise ValueError(error)
         for i, element in enumerate(self.pruning_dataframes):
             element['name'] = names[i]
-        print(f'Columns: {self.pruning_dataframes[0].columns}')
         final_dataframe = pd.DataFrame(columns=self.pruning_dataframes[0].columns)
         for element in self.pruning_dataframes:
             final_dataframe = final_dataframe.append(element)
@@ -44,7 +43,6 @@ class InfoPruning:
             raise ValueError(error)
         for i, element in enumerate(self.pruning_dataframes):
             element['name'] = names[i]
-            print(element['name'])
         final_dataframe = pd.DataFrame(columns=self.pruning_dataframes[0].columns[[1, 2, 6]])
         for df in self.pruning_dataframes:
             reduced_df = df.drop(df.columns[[0, 3, 4, 5]], axis=1)
