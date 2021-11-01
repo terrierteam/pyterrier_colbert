@@ -494,7 +494,7 @@ class ColBERTFactory():
                 for qid, group in tqdm(groupby, total=len(groupby), unit="q") if verbose else groupby:
                     qembs = group["query_embs"].values[0]
                     query = group["query"].values[0]
-                    ranking = slow_rerank_with_qembs(self.args, qembs, group["docno"].values, group[doc_attr].values.tolist())
+                    ranking = self.slow_rerank_with_qembs(self.args, qembs, group["docno"].values, group[doc_attr].values.tolist())
                     for rank, (score, pid, passage) in enumerate(ranking):
                             rtr.append([qid, query, pid, score, rank])          
             return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
