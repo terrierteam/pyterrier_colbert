@@ -35,7 +35,3 @@ class TestIndexing(unittest.TestCase):
         qe_rtr = qe_scorer.search(df["query"])
         self.assertTrue("score" in rtr.columns)
         self.assertTrue(rtr.equals(qe_rtr))
-
-
-
-
