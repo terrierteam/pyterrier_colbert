@@ -22,7 +22,7 @@ from collections import defaultdict
 import numpy as np
 import pickle
 from warnings import warn
-from pyterrier_colbert.pruning import InfoPruning
+from pyterrier_colbert.info_pruning import InfoPruning
 
 
 class file_part_mmap:
