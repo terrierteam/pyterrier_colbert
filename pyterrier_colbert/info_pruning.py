@@ -11,8 +11,10 @@ class InfoPruning:
         self.pruning_info = {}
         self.pruning_dataframes = []
         self.pruning_counter = 0
+        self.topics_len = 0
+        self.n_docs = 0
 
-    def add_pruning_info(self, query_id, doc_id, doc_len, embeddings_pruned, topics_len, n_docs):
+    def add_pruning_info(self, query_id, doc_id, doc_len, embeddings_pruned):
         self.pruning_info[query_id] = {
             doc_id: {
                 'doc_len': doc_len, 
@@ -20,7 +22,7 @@ class InfoPruning:
             }
         }
         self.pruning_counter += 1
-        if(self.pruning_counter == topics_len * n_docs):
+        if(self.pruning_counter == self.topics_len * self.n_docs):
             self.pruning_dataframes.append(self._get_pruning_info())
             self.pruning_info = {}
             self.pruning_counter = 0
