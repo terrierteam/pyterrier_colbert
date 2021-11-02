@@ -12,7 +12,7 @@ class TestIndexing(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
         self.factory = ColBERTFactory(checkpoint, None, None, gpu=False)
-        self.df = self.pt.new.ranked_documents([[1, 2]])
+        self.df = pt.new.ranked_documents([[1, 2]])
         self.df["text"] = [ "professor proton mixed the chemicals", "chemical brothers played that tune"]
         self.df["query"] = ["chemical reactions", "chemical reactions"]
 
