@@ -442,7 +442,6 @@ class ColBERTFactory():
         return pt.apply.generic(_single_retrieve_qembs if query_encoded else _single_retrieve)
 
     def slow_rerank_with_qembs(args, qembs, pids, passages, gpu=True):
-        colbert = args.colbert
         inference = args.inference
 
         # make to 3d tensor
