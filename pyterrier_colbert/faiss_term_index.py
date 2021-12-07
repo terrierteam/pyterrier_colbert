@@ -30,7 +30,7 @@ class Object(object):
 
 class FaissNNTerm():
 
-    def __init__(self, colbert, index_root, index_name, nprobe=10, partitions=None, part_range=None, query_maxlen=32, faiss_index=None, df=False):
+    def __init__(self, colbert, index_root, index_name, nprobe=10, partitions=None, part_range=None, query_maxlen=32, faiss_index=None, cf=True, df=False):
         if type(colbert) == str:
             args = Object()
             args.checkpoint = colbert
@@ -68,9 +68,6 @@ class FaissNNTerm():
             from colbert.ranking.faiss_index import FaissIndex
             self.faiss_index = FaissIndex(index_path, faiss_index_path, nprobe, faiss_part_range)
 
-            #self.faiss_index = faiss.read_index(faiss_index_path)
-            #self.faiss_index.nprobe = nprobe
-
         else:
             self.faiss_index = faiss_index
             self.faiss_index.nprobe = nprobe
@@ -83,11 +80,16 @@ class FaissNNTerm():
         
         self.tok = self.inference.query_tokenizer.tok
         vocab_size = self.tok.vocab_size
-        print("Computing collection frequencies")
-        self.lookup = torch.zeros(vocab_size, dtype=torch.int64)
-        indx, cnt = self.emb2tid.unique(return_counts=True)
-        self.lookup[indx] += cnt
-        print("Done")
+        if cf:
+            cfs_file = os.path.join("cfs.pt")
+            if os.path.exists(cfs_file):
+                self.cfs = torch.load(cfs_file)
+            else:
+                print("Computing collection frequencies")
+                self.lookup = torch.zeros(vocab_size, dtype=torch.int64)
+                indx, cnt = self.emb2tid.unique(return_counts=True)
+                self.lookup[indx] += cnt
+                print("Done")
         
         print("Loading doclens")
         part_doclens = load_doclens(index_path, flatten=False)
@@ -96,13 +98,19 @@ class FaissNNTerm():
         self.num_docs = len(self.doclens)
         self.end_offsets = np.cumsum(self.doclens)
         if df:
-            dfs=torch.zeros(vocab_size, dtype=torch.int64)
-            offset = 0
-            for doclen in tqdm(self.doclens, unit="d", desc="Computing document frequencies"):
-                tids= torch.unique(self.emb2tid[offset:offset+doclen])
-                dfs[tids] += 1
-                offset += doclen
-            self.dfs = dfs
+            dfs_file = os.path.join("dfs.pt")
+            if os.path.exists(dfs_file):
+                self.dfs = torch.load(dfs_file)
+            else:
+                dfs = torch.zeros(vocab_size, dtype=torch.int64)
+                offset = 0
+                for doclen in tqdm(self.doclens, unit="d", desc="Computing document frequencies"):
+                    tids= torch.unique(self.emb2tid[offset:offset+doclen])
+                    dfs[tids] += 1
+                    offset += doclen
+                self.dfs = dfs
+                torch.save(dfs, dfs_file)
+
     
     def get_tokens_for_doc(self, pid):
         """

@@ -210,6 +210,7 @@ class ColBERTFactory():
             index_name : str,
             faiss_partitions=None,#TODO 100-
             memtype = "mem",
+            faisstype= "mem",
             gpu=True):
         
         args = Object()
@@ -270,6 +271,7 @@ class ColBERTFactory():
         args.inference = ModelInference(args.colbert, amp=args.amp)
         self.args = args
 
+        self.faisstype = faisstype
         self.memtype = memtype
 
         #we load this lazily
@@ -315,7 +317,7 @@ class ColBERTFactory():
             memtype=self.memtype)
         return self.rrm
         
-    def nn_term(self, df=False):
+    def nn_term(self, cf=True, df=False):
         """
         Returns an instance of the FaissNNTerm class, which provides statistics about terms
         """
@@ -327,8 +329,8 @@ class ColBERTFactory():
             self.args.colbert,
             self.index_root,
             self.index_name,
-            faiss_index = self._faiss_index(),
-            df=df)
+            faiss_index = self._faiss_index(), 
+            cf=cf, df=df)
         return self._faissnn
 
     def query_encoder(self, detach=True) -> TransformerBase:
@@ -362,7 +364,7 @@ class ColBERTFactory():
         faiss_index_path = os.path.join(self.index_path, faiss_index_path)
         if not os.path.exists(faiss_index_path):
             raise ValueError("No faiss index found at %s" % faiss_index_path)
-        self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range)
+        self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range, mmap=self.faisstype == 'mmap')
         # ensure the faiss_index is transferred to GPU memory for speed
         import faiss
         if self.faiss_index_on_gpu:
