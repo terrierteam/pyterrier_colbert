@@ -830,11 +830,12 @@ class ColbertPRF(TransformerBase):
         # validation of the input
         required = ["qid", "query", "docno", "query_embs", "rank"]
         for col in required:
-            assert col in topics_and_docs.columns
+            if not col in topics_and_docs.columns:
+                raise KeyError("Input missing column %s, found %s" % (col, str(list(topics_and_docs.columns))) )
         
         #restore the docid column if missing
         if "docid" not in topics_and_docs:
-            topics_and_docs = self.pytcfactory.add_docids(topics_and_docs)
+            topics_and_docs = self.pytcfactory._add_docids(topics_and_docs)
         
         rtr = []
         for qid, res in topics_and_docs.groupby("qid"):
