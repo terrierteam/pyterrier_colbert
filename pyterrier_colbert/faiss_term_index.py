@@ -83,13 +83,14 @@ class FaissNNTerm():
         if cf:
             cfs_file = os.path.join("cfs.pt")
             if os.path.exists(cfs_file):
-                self.cfs = torch.load(cfs_file)
+                self.lookup = torch.load(cfs_file)
             else:
                 print("Computing collection frequencies")
                 self.lookup = torch.zeros(vocab_size, dtype=torch.int64)
                 indx, cnt = self.emb2tid.unique(return_counts=True)
                 self.lookup[indx] += cnt
                 print("Done")
+                torch.save(self.lookup, cfs_file)
         
         print("Loading doclens")
         part_doclens = load_doclens(index_path, flatten=False)
