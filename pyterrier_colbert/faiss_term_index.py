@@ -81,7 +81,7 @@ class FaissNNTerm():
         self.tok = self.inference.query_tokenizer.tok
         vocab_size = self.tok.vocab_size
         if cf:
-            cfs_file = os.path.join("cfs.pt")
+            cfs_file = os.path.join(index_path, "cfs.pt")
             if os.path.exists(cfs_file):
                 self.lookup = torch.load(cfs_file)
             else:
@@ -99,7 +99,7 @@ class FaissNNTerm():
         self.num_docs = len(self.doclens)
         self.end_offsets = np.cumsum(self.doclens)
         if df:
-            dfs_file = os.path.join("dfs.pt")
+            dfs_file = os.path.join(index_path, "dfs.pt")
             if os.path.exists(dfs_file):
                 self.dfs = torch.load(dfs_file)
             else:
