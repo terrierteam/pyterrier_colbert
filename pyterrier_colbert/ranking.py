@@ -441,29 +441,6 @@ class ColBERTFactory():
         
         return pt.apply.generic(_single_retrieve_qembs if query_encoded else _single_retrieve)
 
-    def slow_rerank_with_qembs(args, qembs, pids, passages, gpu=True):
-        inference = args.inference
-
-        # make to 3d tensor
-        Q = torch.unsqueeze(qembs, 0)
-        if gpu:
-            Q = Q.cuda()
-        
-        D_ = inference.docFromText(passages, bsize=args.bsize)
-        if gpu:
-            D_ = D_.cuda()
-        
-        scores = (Q @ D_.permute(0, 2, 1)).max(2).values.sum(1)
-
-        scores = scores.sort(descending=True)
-        ranked = scores.indices.tolist()
-
-        ranked_scores = scores.values.tolist()
-        ranked_pids = [pids[position] for position in ranked]
-        ranked_passages = [passages[position] for position in ranked]
-
-        return list(zip(ranked_scores, ranked_pids, ranked_passages))
-
     def text_scorer(self, query_encoded=False, doc_attr="text", verbose=False) -> TransformerBase:
         """
         Returns a transformer that uses ColBERT model to score the *text* of documents.
@@ -473,6 +450,29 @@ class ColBERTFactory():
         #input: qid, query, query_embs, query_toks, query_weights, docno, text
 
         #output: qid, query, docno, score
+
+        def slow_rerank_with_qembs(args, qembs, pids, passages, gpu=True):
+            inference = args.inference
+
+            # make to 3d tensor
+            Q = torch.unsqueeze(qembs, 0)
+            if gpu:
+                Q = Q.cuda()
+            
+            D_ = inference.docFromText(passages, bsize=args.bsize)
+            if gpu:
+                D_ = D_.cuda()
+            
+            scores = (Q @ D_.permute(0, 2, 1)).max(2).values.sum(1)
+
+            scores = scores.sort(descending=True)
+            ranked = scores.indices.tolist()
+
+            ranked_scores = scores.values.tolist()
+            ranked_pids = [pids[position] for position in ranked]
+            ranked_passages = [passages[position] for position in ranked]
+
+            return list(zip(ranked_scores, ranked_pids, ranked_passages))
 
         def _text_scorer(queries_and_docs):
             groupby = queries_and_docs.groupby("qid")
@@ -493,7 +493,7 @@ class ColBERTFactory():
                 for qid, group in tqdm(groupby, total=len(groupby), unit="q") if verbose else groupby:
                     qembs = group["query_embs"].values[0]
                     query = group["query"].values[0]
-                    ranking = self.slow_rerank_with_qembs(self.args, qembs, group["docno"].values, group[doc_attr].values.tolist())
+                    ranking = slow_rerank_with_qembs(self.args, qembs, group["docno"].values, group[doc_attr].values.tolist())
                     for rank, (score, pid, passage) in enumerate(ranking):
                             rtr.append([qid, query, pid, score, rank])          
             return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
