@@ -202,17 +202,10 @@ class re_ranker_mmap:
             allscores.extend(batch_scores)
         return allscores
 
-class ColBERTFactory():
+class ColBERTModelOnlyFactory():
 
     def __init__(self, 
-            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], 
-            index_root : str, 
-            index_name : str,
-            faiss_partitions=None,#TODO 100-
-            memtype = "mem",
-            faisstype= "mem",
-            gpu=True):
-        
+            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], gpu=True):
         args = Object()
         args.query_maxlen = 32
         args.doc_maxlen = 180
@@ -224,34 +217,10 @@ class ColBERTFactory():
         args.nprobe = 10
         args.part_range = None
         args.mask_punctuation = False
-        args.partitions = faiss_partitions
 
-        self.verbose = False
-        self._faissnn = None
-        self.index_root = index_root
-        self.index_name = index_name
-        if index_root is None or index_name is None:
-            warn("No index_root and index_name specified - no index ranking possible")
-        else:
-            self.index_path = os.path.join(index_root, index_name)
-            docnos_file = os.path.join(self.index_path, "docnos.pkl.gz")
-            if os.path.exists(docnos_file):
-                with pt.io.autoopen(docnos_file, "rb") as f:
-                    self.docid2docno = pickle.load(f)
-                    # support reverse docno lookup in memory
-                    self.docno2docid = { docno : docid for docid, docno in enumerate(self.docid2docno) }
-                    self.docid_as_docno = False
-            else:
-                self.docid_as_docno = True
-
-        try:
-            import faiss
-        except:
-            warn("Faiss not installed. You cannot do retrieval")
-        self.faiss_index_on_gpu = True
         self.gpu = True
         if not gpu:
-            self.faiss_index_on_gpu = False
+            
             warn("Gpu disabled, YMMV")
             import colbert.parameters
             import colbert.evaluation.load_model
@@ -270,7 +239,227 @@ class ColBERTFactory():
             
         args.inference = ModelInference(args.colbert, amp=args.amp)
         self.args = args
+        
+    def query_encoder(self, detach=True) -> TransformerBase:
+        """
+        Returns a transformer that can encode queries using ColBERT's model.
+        input: qid, query
+        output: qid, query, query_embs, query_toks,
+        """
+        def _encode_query(row):
+            with torch.no_grad():
+                Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
+                if detach:
+                    Q = Q.cpu()
+                return pd.Series([Q[0], ids[0]])
+            
+        def row_apply(df):
+            if "docno" in df.columns or "docid" in df.columns:
+                warn("You are query encoding an R dataframe, the query will be encoded for each row")
+            df[["query_embs", "query_toks"]] = df.apply(_encode_query, axis=1)
+            return df
+        
+        return pt.apply.generic(row_apply)
 
+    def explain_text(self, query : str, document : str):
+        """
+        Provides a diagram explaining the interaction between a query and the text of a document
+        """
+        embsD, idsD = self.args.inference.docFromText([document], with_ids=True)
+        return self._explain(query, embsD, idsD)
+    
+    def _explain(self, query, embsD, idsD):
+        embsQ, idsQ, masksQ = self.args.inference.queryFromText([query], with_ids=True)
+
+        interaction = (embsQ[0] @ embsD[0].T).cpu().numpy().T
+        
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+        tokenmap = {"[unused1]" : "[D]", "[unused0]" : "[Q]"}
+
+        fig = plt.figure(figsize=(4, 12)) 
+        gs = GridSpec(2, 1, height_ratios=[1, 20]) 
+
+        ax1=fig.add_subplot(gs[0])
+        ax2=fig.add_subplot(gs[1])
+        
+        ax2.matshow(interaction, cmap=plt.cm.Blues)
+        qtokens = self.args.inference.query_tokenizer.tok.convert_ids_to_tokens(idsQ[0])
+        dtokens = self.args.inference.query_tokenizer.tok.convert_ids_to_tokens(idsD[0])
+        qtokens = [tokenmap[t] if t in tokenmap else t for t in qtokens]
+        dtokens = [tokenmap[t] if t in tokenmap else t for t in dtokens]
+
+        ax2.set_xticks(range(32), minor=False)
+        ax2.set_xticklabels(qtokens, rotation=90)
+        ax2.set_yticks(range(len(idsD[0])))
+        ax2.set_yticklabels(dtokens)
+        ax2.set_anchor("N")
+
+        contributions=[]
+        for i in range(32):
+            maxpos = np.argmax(interaction[:,i])
+            plt.text(i-0.25, maxpos+0.1, "X", fontsize=5)
+            contributions.append(interaction[maxpos,i])
+
+        from sklearn.preprocessing import minmax_scale
+        ax1.bar([0.5 + i for i in range(0,32)], contributions, color=plt.cm.Blues(minmax_scale(contributions, feature_range=(0.4, 1))))
+        ax1.set_xlim([0,32])
+        ax1.set_xticklabels([])
+        fig.tight_layout()
+        #fig.subplots_adjust(hspace=-0.37)
+        return fig
+
+    def text_scorer(self, query_encoded=False, doc_attr="text", verbose=False) -> TransformerBase:
+        """
+        Returns a transformer that uses ColBERT model to score the *text* of documents.
+        """
+        #input: qid, query, docno, text
+        #OR
+        #input: qid, query, query_embs, query_toks, query_weights, docno, text
+
+        #output: qid, query, docno, score
+
+        assert not query_encoded
+        def _text_scorer(queries_and_docs):
+            groupby = queries_and_docs.groupby("qid")
+            rtr=[]
+            with torch.no_grad():
+                for qid, group in tqdm(groupby, total=len(groupby), unit="q") if verbose else groupby:
+                    query = group["query"].values[0]
+                    ranking = slow_rerank(self.args, query, group["docno"].values, group[doc_attr].values.tolist())
+                    for rank, (score, pid, passage) in enumerate(ranking):
+                            rtr.append([qid, query, pid, score, rank])          
+            return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
+
+        return pt.apply.generic(_text_scorer)
+
+    def scorer(factory, add_contributions=False, add_exact_match_contribution=False, verbose=False) -> TransformerBase:
+        """
+        Calculates the ColBERT max_sim operator using previous encodings of queries and documents
+        input: qid, query_embs, [query_weights], docno, doc_embs
+        output: ditto + score, [+ contributions]
+        """
+        import torch
+        import pyterrier as pt
+        assert pt.started(), 'PyTerrier must be started'
+        cuda0 = torch.device('cuda:0')
+
+        def _build_interaction(row, D):
+            doc_embs = row.doc_embs
+            doc_len = doc_embs.shape[0]
+            D[row.row_index, 0:doc_len, :] = doc_embs
+            
+        def _build_toks(row, idsD):
+            doc_toks = row.doc_toks
+            doc_len = doc_toks.shape[0]
+            idsD[row.row_index, 0:doc_len] = doc_toks
+        
+        def _score_query(df):
+            with torch.no_grad():
+                weightsQ = None
+                Q = torch.cat([df.iloc[0].query_embs]).cuda()
+                if "query_weights" in df.columns:
+                    weightsQ = df.iloc[0].query_weights.cuda()
+                else:
+                    weightsQ = torch.ones(Q.shape[0]).cuda()        
+                D = torch.zeros(len(df), factory.args.doc_maxlen, factory.args.dim, device=cuda0)
+                df['row_index'] = range(len(df))
+                if verbose:
+                    pt.tqdm.pandas(desc='scorer')
+                    df.progress_apply(lambda row: _build_interaction(row, D), axis=1)
+                else:
+                    df.apply(lambda row: _build_interaction(row, D), axis=1)
+                maxscoreQ = (Q @ D.permute(0, 2, 1)).max(2).values
+                scores = (weightsQ*maxscoreQ).sum(1).cpu()
+                df["score"] = scores.tolist()
+                df = factory._add_docnos(df)
+                if add_contributions:
+                    contributions = (Q @ D.permute(0, 2, 1)).max(1).values.cpu()
+                    df["contributions"] = contributions.tolist()
+                if add_exact_match_contribution:
+                    idsQ = torch.cat([df.iloc[0].query_toks]).unsqueeze(0)
+                    idsD = torch.zeros(len(df), factory.args.doc_maxlen, dtype=idsQ.dtype)
+
+                    df.apply(lambda row: _build_toks(row, idsD), axis=1)
+
+                    # which places in the query are actual tokens, not specials such as MASKs
+                    token_match = (idsQ != 101) & (idsQ != 102) & (idsQ != 103) & (idsQ != 1) & (idsQ != 2)
+
+                    # which places in the interaction have exact matches (not [CLS])
+                    exact_match = (idsQ.unsqueeze(1) == idsD.unsqueeze(2)) & (idsQ != 101)
+                    
+                    # perform the interaction
+                    interaction = (Q @ D.permute(0, 2, 1)).cpu()
+
+                    weightsQ = weightsQ.unsqueeze(0).cpu()
+
+                    weighted_maxsim = weightsQ*interaction.max(2).values
+
+                    # mask out query embeddings that arent tokens 
+                    weighted_maxsim[:, ~token_match[0,:]] = 0
+                    
+                    # get the sum
+                    denominator = weighted_maxsim.sum(1)
+
+                    # zero out entries that arent exact matches
+                    interaction[~ exact_match.permute(0, 2, 1)] = 0
+
+                    weighted_maxsim = weightsQ*interaction.max(2).values
+                    # mask out query embeddings that arent tokens 
+                    weighted_maxsim[:, ~token_match[0,:]] = 0
+
+                    # get the sum
+                    numerator = weighted_maxsim.sum(1)
+                    #df["exact_count"] = exact_match
+                    df["exact_numer"] = numerator.tolist()
+                    df["exact_denom"] = denominator.tolist()
+                    df["exact_pct"] = (numerator/denominator).tolist()
+            return df
+            
+        return pt.apply.by_query(_score_query, add_ranks=True)
+
+class ColBERTFactory(ColBERTModelOnlyFactory):
+
+    def __init__(self, 
+            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], 
+            index_root : str, 
+            index_name : str,
+            faiss_partitions=None,#TODO 100-
+            memtype = "mem",
+            faisstype= "mem",
+            gpu=True):
+        
+        super().__init__(colbert_model, gpu=gpu)
+       
+        self.verbose = False
+        self._faissnn = None
+        self.index_root = index_root
+        self.index_name = index_name
+        if index_root is None or index_name is None:
+            warn("No index_root and index_name specified - no index ranking possible")
+        else:
+            self.index_path = os.path.join(index_root, index_name)
+            docnos_file = os.path.join(self.index_path, "docnos.pkl.gz")
+            if os.path.exists(docnos_file):
+                with pt.io.autoopen(docnos_file, "rb") as f:
+                    self.docid2docno = pickle.load(f)
+                    # support reverse docno lookup in memory
+                    self.docno2docid = { docno : docid for docid, docno in enumerate(self.docid2docno) }
+                    self.docid_as_docno = False
+            else:
+                self.docid_as_docno = True
+        
+        if not gpu:
+            self.faiss_index_on_gpu = False
+
+        try:
+            import faiss
+        except:
+            warn("Faiss not installed. You cannot do retrieval")
+        self.faiss_index_on_gpu = True
+        self.args.partitions = faiss_partitions
         self.faisstype = faisstype
         self.memtype = memtype
 
@@ -332,25 +521,6 @@ class ColBERTFactory():
             faiss_index = self._faiss_index(), 
             cf=cf, df=df)
         return self._faissnn
-
-    def query_encoder(self, detach=True) -> TransformerBase:
-        """
-        Returns a transformer that can encode queries using ColBERT's model.
-        input: qid, query
-        output: qid, query, query_embs, query_toks,
-        """
-        def _encode_query(row):
-            with torch.no_grad():
-                Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
-                if detach:
-                    Q = Q.cpu()
-                return pd.Series([Q[0], ids[0]])
-            
-        def row_apply(df):
-            df[["query_embs", "query_toks"]] = df.apply(_encode_query, axis=1)
-            return df
-        
-        return pt.apply.generic(row_apply)
 
     def _faiss_index(self):
         """
@@ -442,30 +612,6 @@ class ColBERTFactory():
             return rtrDf
         
         return pt.apply.generic(_single_retrieve_qembs if query_encoded else _single_retrieve)
-
-    def text_scorer(self, query_encoded=False, doc_attr="text", verbose=False) -> TransformerBase:
-        """
-        Returns a transformer that uses ColBERT model to score the *text* of documents.
-        """
-        #input: qid, query, docno, text
-        #OR
-        #input: qid, query, query_embs, query_toks, query_weights, docno, text
-
-        #output: qid, query, docno, score
-
-        assert not query_encoded
-        def _text_scorer(queries_and_docs):
-            groupby = queries_and_docs.groupby("qid")
-            rtr=[]
-            with torch.no_grad():
-                for qid, group in tqdm(groupby, total=len(groupby), unit="q") if verbose else groupby:
-                    query = group["query"].values[0]
-                    ranking = slow_rerank(self.args, query, group["docno"].values, group[doc_attr].values.tolist())
-                    for rank, (score, pid, passage) in enumerate(ranking):
-                            rtr.append([qid, query, pid, score, rank])          
-            return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
-
-        return pt.apply.generic(_text_scorer)
 
     def _add_docids(self, df):
         if self.docid_as_docno:
@@ -631,6 +777,44 @@ class ColBERTFactory():
         t.__reduce_ex__ = types.MethodType(__reduce_ex__, t)
         t.__getstate__ = types.MethodType(lambda t2 : None, t)
         return t
+    
+    def fetch_index_encodings(factory, verbose=False, ids=False) -> TransformerBase:
+        """
+        New encoder that gets embeddings from rrm and stores into doc_embs column.
+        If ids is True, then an additional doc_toks column is also added. This requires 
+        a Faiss NN term index data structure, i.e. indexing should have ids=True set.
+        input: docid, ...
+        output: ditto + doc_embs [+ doc_toks]
+        """
+        def _get_embs(df):
+            rrm = factory._rrm() # _rrm() instead of rrm because we need to check it has already been loaded.
+            if verbose:
+                import pyterrier as pt
+                pt.tqdm.pandas(desc="fetch_index_encodings")
+                df["doc_embs"] = df.docid.progress_apply(rrm.get_embedding) 
+            else:
+                df["doc_embs"] = df.docid.apply(rrm.get_embedding)
+            return df
+
+        def _get_tok_ids(df):
+            fnt = factory.nn_term(False)
+            def _get_toks(pid):
+                end = fnt.end_offsets[pid]
+                start = end - fnt.doclens[pid]
+                return fnt.emb2tid[start:end].clone()
+
+            if verbose:
+                import pyterrier as pt
+                pt.tqdm.pandas()
+                df["doc_toks"] = df.docid.progress_apply(_get_toks)
+            else:
+                df["doc_toks"] = df.docid.apply(_get_toks)
+            return df
+        rtr = pt.apply.by_query(_get_embs, add_ranks=False)
+        if ids:
+            rtr = rtr >> pt.apply.by_query(_get_tok_ids, add_ranks=False)
+        return rtr
+
 
     def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
         """
@@ -680,56 +864,7 @@ class ColBERTFactory():
         embsD = self._rrm().get_embedding(pid)
         idsD = self.nn_term().get_tokens_for_doc(pid)
         return self._explain(query, embsD, idsD)
-
-    def explain_text(self, query : str, document : str):
-        """
-        Provides a diagram explaining the interaction between a query and the text of a document
-        """
-        embsD, idsD = self.args.inference.docFromText([document], with_ids=True)
-        return self._explain(query, embsD, idsD)
     
-    def _explain(self, query, embsD, idsD):
-        embsQ, idsQ, masksQ = self.args.inference.queryFromText([query], with_ids=True)
-
-        interaction = (embsQ[0] @ embsD[0].T).cpu().numpy().T
-        
-        import numpy as np
-        import matplotlib.pyplot as plt
-        from matplotlib.gridspec import GridSpec
-
-        tokenmap = {"[unused1]" : "[D]", "[unused0]" : "[Q]"}
-
-        fig = plt.figure(figsize=(4, 12)) 
-        gs = GridSpec(2, 1, height_ratios=[1, 20]) 
-
-        ax1=fig.add_subplot(gs[0])
-        ax2=fig.add_subplot(gs[1])
-        
-        ax2.matshow(interaction, cmap=plt.cm.Blues)
-        qtokens = self.args.inference.query_tokenizer.tok.convert_ids_to_tokens(idsQ[0])
-        dtokens = self.args.inference.query_tokenizer.tok.convert_ids_to_tokens(idsD[0])
-        qtokens = [tokenmap[t] if t in tokenmap else t for t in qtokens]
-        dtokens = [tokenmap[t] if t in tokenmap else t for t in dtokens]
-
-        ax2.set_xticks(range(32), minor=False)
-        ax2.set_xticklabels(qtokens, rotation=90)
-        ax2.set_yticks(range(len(idsD[0])))
-        ax2.set_yticklabels(dtokens)
-        ax2.set_anchor("N")
-
-        contributions=[]
-        for i in range(32):
-            maxpos = np.argmax(interaction[:,i])
-            plt.text(i-0.25, maxpos+0.1, "X", fontsize=5)
-            contributions.append(interaction[maxpos,i])
-
-        from sklearn.preprocessing import minmax_scale
-        ax1.bar([0.5 + i for i in range(0,32)], contributions, color=plt.cm.Blues(minmax_scale(contributions, feature_range=(0.4, 1))))
-        ax1.set_xlim([0,32])
-        ax1.set_xticklabels([])
-        fig.tight_layout()
-        #fig.subplots_adjust(hspace=-0.37)
-        return fig
 
 from pyterrier.transformer import TransformerBase
 import pandas as pd
