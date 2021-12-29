@@ -24,6 +24,19 @@ jobs:
         java-version: ${{ matrix.java }}
         architecture: ${{ matrix.architecture }}
 
+    # follows https://medium.com/ai2-blog/python-caching-in-github-actions-e9452698e98d
+    - name: Loading Python & dependencies from cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.pythonLocation }}
+        key: ${{ env.pythonLocation }}-${{ hashFiles('requirements.txt') }}-${{ hashFiles('requirements-test.txt') }}
+
+    - name: Loading Torch models from cache
+      uses: actions/cache@v2
+      with:
+        path: /home/runner/.cache/
+        key: uog44k_only
+
     - name: Setup conda
       uses: s-weigand/setup-conda@v1
       with:
