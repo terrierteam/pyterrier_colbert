@@ -1,5 +1,6 @@
 import pandas as pd
 import pyterrier as pt
+assert pt.started(), "please run pt.init() before importing pyt_colbert"
 from pyterrier.transformer import TransformerBase
 from .ranking import ColBERTFactory
 

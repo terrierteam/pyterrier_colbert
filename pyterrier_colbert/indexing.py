@@ -1,3 +1,5 @@
+import pyterrier as pt
+assert pt.started(), "please run pt.init() before importing pyt_colbert"
 import os
 from pyterrier_colbert.ranking import ColBERTFactory
 import numpy as np

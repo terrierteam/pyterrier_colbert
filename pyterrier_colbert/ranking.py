@@ -3,11 +3,12 @@ import os
 import torch
 import pandas as pd
 import pyterrier as pt
+assert pt.started(), "please run pt.init() before importing pyt_colbert"
+
 from pyterrier import tqdm
 from pyterrier.transformer import TransformerBase
 from pyterrier.datasets import Dataset
 from typing import Union, Tuple
-import random
 from colbert.evaluation.load_model import load_model
 from . import load_checkpoint
 # monkeypatch to use our downloading version
@@ -83,6 +84,9 @@ class re_ranker_mmap:
         # so if each partition has 1000 docs, the array is [999, 1999, ...]
         # this helps us map from passage id to part (inclusive, explaning the -1)
         self.part_pid_end_offsets = np.cumsum([len(x) for x in self.part_doclens]) - 1
+
+        self.segment_sizes = torch.LongTensor([0] + [x.mmap.shape[0] for x in self.part_mmap])
+        self.segment_starts = torch.cumsum(self.segment_sizes, 0)
         
         # first pid (inclusive) in each pt file
         tmp = np.cumsum([len(x) for x in self.part_doclens])
@@ -104,6 +108,12 @@ class re_ranker_mmap:
         else:
             assert False, "Unknown memtype %s" % memtype
         return mmaps
+
+    def num_docs(self):
+        """
+        Return number of documents in the index
+        """
+        return sum([len(x) for x in self.part_doclens])
 
     def get_embedding(self, pid):
         # In which pt file we need to look the given pid
@@ -321,7 +331,29 @@ class ColBERTModelOnlyFactory():
 
         #output: qid, query, docno, score
 
-        assert not query_encoded
+        def slow_rerank_with_qembs(args, qembs, pids, passages, gpu=True):
+            inference = args.inference
+
+            # make to 3d tensor
+            Q = torch.unsqueeze(qembs, 0)
+            if gpu:
+                Q = Q.cuda()
+            
+            D_ = inference.docFromText(passages, bsize=args.bsize)
+            if gpu:
+                D_ = D_.cuda()
+            
+            scores = (Q @ D_.permute(0, 2, 1)).max(2).values.sum(1)
+
+            scores = scores.sort(descending=True)
+            ranked = scores.indices.tolist()
+
+            ranked_scores = scores.values.tolist()
+            ranked_pids = [pids[position] for position in ranked]
+            ranked_passages = [passages[position] for position in ranked]
+
+            return list(zip(ranked_scores, ranked_pids, ranked_passages))
+
         def _text_scorer(queries_and_docs):
             groupby = queries_and_docs.groupby("qid")
             rtr=[]
@@ -333,7 +365,20 @@ class ColBERTModelOnlyFactory():
                             rtr.append([qid, query, pid, score, rank])          
             return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
 
-        return pt.apply.generic(_text_scorer)
+        # when query is encoded 
+        def _text_scorer_qembs(queries_and_docs):
+            groupby = queries_and_docs.groupby("qid")
+            rtr=[]
+            with torch.no_grad():
+                for qid, group in tqdm(groupby, total=len(groupby), unit="q") if verbose else groupby:
+                    qembs = group["query_embs"].values[0]
+                    query = group["query"].values[0]
+                    ranking = slow_rerank_with_qembs(self.args, qembs, group["docno"].values, group[doc_attr].values.tolist(), gpu=self.gpu)
+                    for rank, (score, pid, passage) in enumerate(ranking):
+                            rtr.append([qid, query, pid, score, rank])          
+            return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
+
+        return pt.apply.generic(_text_scorer_qembs if query_encoded else _text_scorer)
 
     def scorer(factory, add_contributions=False, add_exact_match_contribution=False, verbose=False) -> TransformerBase:
         """
@@ -490,7 +535,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                              version=version, 
                              clz=_ColBERTFactoryconstruct, **kwargs)
         
-    def _rrm(self):
+    def _rrm(self) -> re_ranker_mmap:
         """
         Returns an instance of the re_ranker_mmap class.
         Only one is created, if necessary.
@@ -506,6 +551,9 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             verbose=self.verbose, 
             memtype=self.memtype)
         return self.rrm
+
+    def __len__(self):
+        return self._rrm().num_docs()
         
     def nn_term(self, cf=True, df=False):
         """
@@ -680,6 +728,40 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         if query_encoded:
             return pt.apply.by_query(rrm_scorer_query_embs) 
         return pt.apply.by_query(rrm_scorer) 
+
+    def get_embeddings_by_token(self, tokenid, flatten=True, sample=None) -> Union[torch.TensorType, List[torch.TensorType]]:
+        """
+        Returns all embeddings for a given tokenid. Specifying a sample fraction results in the embeddings being sampled.
+        """
+        import torch
+        from typing import List
+
+        def partition(tensor : torch.Tensor, offsets : torch.Tensor) -> List[torch.Tensor]:
+            num_shards = offsets.shape[0]
+            positions = torch.bucketize(tensor, offsets[1:])
+            rtr = [tensor[positions == shard_id] for shard_id in range(num_shards)]
+            return rtr
+        
+        nn_term = self.nn_term()
+        rrm = self._rrm()
+        
+        # global positions of this tokenid in the entire index
+        offsets = (nn_term.emb2tid == tokenid).nonzero()
+        
+        # apply sampling if requested
+        if sample is not None:
+            offsets = offsets[self.rng.integers(0, len(offsets), int(sample * len(offsets)))]
+        
+        # get offsets partitioned by index shard
+        partitioned_offsets = partition(offsets, self.segment_starts)            
+        
+        # get the requested embeddings
+        all_tensors = [ rrm.part_mmap[shard].mmap[shard_portion - self.segment_starts[shard]] for shard, shard_portion in enumerate(partitioned_offsets) if shard_portion.shape[0] > 0 ]
+
+        # if requested, make a single tensor - involves a further copy
+        if flatten:
+            all_tensors = torch.cat(all_tensors).squeeze()
+        return all_tensors
 
     def end_to_end(self) -> TransformerBase:
         """

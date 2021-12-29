@@ -23,6 +23,8 @@ class TestIndexing(unittest.TestCase):
             
         for factory in [indexer.ranking_factory()]:
 
+            self.assertEqual(200, len(factory))
+
             for pipe, has_score, name in [
                 (factory.end_to_end(), True, "E2E"),
                 (factory.prf(False), True, "PRF rank"),
