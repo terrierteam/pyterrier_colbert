@@ -124,3 +124,4 @@ On Colab, you need to resort to pip install. We recommend faiss-gpu version 1.6.
  - Nicola Tonellotto, University of Pisa
  - Sanjana Karumuri, University of Glasgow
  - Xiao Wang, University of Glasgow
+ - Muhammad Hammad Khan, University of Glasgow

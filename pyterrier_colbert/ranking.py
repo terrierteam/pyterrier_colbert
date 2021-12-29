@@ -455,7 +455,29 @@ class ColBERTFactory():
 
         #output: qid, query, docno, score
 
-        assert not query_encoded
+        def slow_rerank_with_qembs(args, qembs, pids, passages, gpu=True):
+            inference = args.inference
+
+            # make to 3d tensor
+            Q = torch.unsqueeze(qembs, 0)
+            if gpu:
+                Q = Q.cuda()
+            
+            D_ = inference.docFromText(passages, bsize=args.bsize)
+            if gpu:
+                D_ = D_.cuda()
+            
+            scores = (Q @ D_.permute(0, 2, 1)).max(2).values.sum(1)
+
+            scores = scores.sort(descending=True)
+            ranked = scores.indices.tolist()
+
+            ranked_scores = scores.values.tolist()
+            ranked_pids = [pids[position] for position in ranked]
+            ranked_passages = [passages[position] for position in ranked]
+
+            return list(zip(ranked_scores, ranked_pids, ranked_passages))
+
         def _text_scorer(queries_and_docs):
             groupby = queries_and_docs.groupby("qid")
             rtr=[]
@@ -467,7 +489,20 @@ class ColBERTFactory():
                             rtr.append([qid, query, pid, score, rank])          
             return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
 
-        return pt.apply.generic(_text_scorer)
+        # when query is encoded 
+        def _text_scorer_qembs(queries_and_docs):
+            groupby = queries_and_docs.groupby("qid")
+            rtr=[]
+            with torch.no_grad():
+                for qid, group in tqdm(groupby, total=len(groupby), unit="q") if verbose else groupby:
+                    qembs = group["query_embs"].values[0]
+                    query = group["query"].values[0]
+                    ranking = slow_rerank_with_qembs(self.args, qembs, group["docno"].values, group[doc_attr].values.tolist(), gpu=self.gpu)
+                    for rank, (score, pid, passage) in enumerate(ranking):
+                            rtr.append([qid, query, pid, score, rank])          
+            return pd.DataFrame(rtr, columns=["qid", "query", "docno", "score", "rank"])
+
+        return pt.apply.generic(_text_scorer_qembs if query_encoded else _text_scorer)
 
     def _add_docids(self, df):
         if self.docid_as_docno:
