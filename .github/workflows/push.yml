@@ -35,8 +35,8 @@ jobs:
     - name: Loading Python & dependencies from cache
       uses: actions/cache@v2
       with:
-        path: /usr/share/miniconda/
-        key: /usr/share/miniconda/-${{ hashFiles('requirements.txt') }}
+        path: /usr/share/miniconda/lib/python3.8/site-packages/
+        key: /usr/share/miniconda/lib/python3.8/site-packages/-${{ hashFiles('requirements.txt') }}
 
     - name: Loading Torch models from cache
       uses: actions/cache@v2
