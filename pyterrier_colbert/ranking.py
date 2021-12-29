@@ -451,6 +451,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             else:
                 self.docid_as_docno = True
         
+        self.faiss_index_on_gpu = True
         if not gpu:
             self.faiss_index_on_gpu = False
 
@@ -458,7 +459,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             import faiss
         except:
             warn("Faiss not installed. You cannot do retrieval")
-        self.faiss_index_on_gpu = True
+        
         self.args.partitions = faiss_partitions
         self.faisstype = faisstype
         self.memtype = memtype
