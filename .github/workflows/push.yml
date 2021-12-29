@@ -29,7 +29,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.pythonLocation }}
-        key: ${{ env.pythonLocation }}-${{ hashFiles('requirements.txt') }}-${{ hashFiles('requirements-test.txt') }}
+        key: ${{ env.pythonLocation }}-${{ hashFiles('requirements.txt') }}
 
     - name: Loading Torch models from cache
       uses: actions/cache@v2
