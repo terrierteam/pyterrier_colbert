@@ -14,7 +14,7 @@ class TestIndexing(unittest.TestCase):
     def test_text_scorer(self):
         from pyterrier_colbert.ranking import ColBERTModelOnlyFactory
         checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
-        factory = ColBERTModelOnlyFactory(checkpoint, None, None, gpu=False)
+        factory = ColBERTModelOnlyFactory(checkpoint, gpu=False)
         scorer = factory.text_scorer()
         df = pt.new.ranked_documents([[1, 2]])
         df["text"] = [ "professor proton mixed the chemicals", "chemical brothers played that tune"]
@@ -25,7 +25,7 @@ class TestIndexing(unittest.TestCase):
     def test_query_encoder(self):
         from pyterrier_colbert.ranking import ColBERTModelOnlyFactory
         checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
-        factory = ColBERTModelOnlyFactory(checkpoint, None, None, gpu=False)
+        factory = ColBERTModelOnlyFactory(checkpoint, gpu=False)
         queries = pt.new.queries(["chemical reactions"])
         qend = factory.query_encoder()
         rtr = qend(queries)
