@@ -3,6 +3,8 @@ import os
 import torch
 import pandas as pd
 import pyterrier as pt
+assert pt.started(), "please run pt.init() before importing pyt_colbert"
+
 from pyterrier import tqdm
 from pyterrier.transformer import TransformerBase
 from pyterrier.datasets import Dataset
