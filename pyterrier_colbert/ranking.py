@@ -9,7 +9,6 @@ from pyterrier import tqdm
 from pyterrier.transformer import TransformerBase
 from pyterrier.datasets import Dataset
 from typing import Union, Tuple
-import random
 from colbert.evaluation.load_model import load_model
 from . import load_checkpoint
 # monkeypatch to use our downloading version
@@ -85,6 +84,9 @@ class re_ranker_mmap:
         # so if each partition has 1000 docs, the array is [999, 1999, ...]
         # this helps us map from passage id to part (inclusive, explaning the -1)
         self.part_pid_end_offsets = np.cumsum([len(x) for x in self.part_doclens]) - 1
+
+        self.segment_sizes = torch.LongTensor([0] + [x.mmap.shape[0] for x in self.part_mmap])
+        self.segment_starts = torch.cumsum(self.segment_sizes, 0)
         
         # first pid (inclusive) in each pt file
         tmp = np.cumsum([len(x) for x in self.part_doclens])
@@ -228,6 +230,8 @@ class ColBERTFactory():
         args.mask_punctuation = False
         args.partitions = faiss_partitions
 
+        import numpy as np
+        self.rng = np.random.default_rng(12345)
         self.verbose = False
         self._faissnn = None
         self.index_root = index_root
@@ -570,6 +574,40 @@ class ColBERTFactory():
         if query_encoded:
             return pt.apply.by_query(rrm_scorer_query_embs) 
         return pt.apply.by_query(rrm_scorer) 
+
+    def get_embeddings_by_token(self, tokenid, flatten=True, sample=None) -> Union[torch.TensorType, List[torch.TensorType]]:
+        """
+        Returns all embeddings for a given tokenid. Specifying a sample fraction results in the embeddings being sampled.
+        """
+        import torch
+        from typing import List
+
+        def partition(tensor : torch.Tensor, offsets : torch.Tensor) -> List[torch.Tensor]:
+            num_shards = offsets.shape[0]
+            positions = torch.bucketize(tensor, offsets[1:])
+            rtr = [tensor[positions == shard_id] for shard_id in range(num_shards)]
+            return rtr
+        
+        nn_term = self.nn_term()
+        rrm = self._rrm()
+        
+        # global positions of this tokenid in the entire index
+        offsets = (nn_term.emb2tid == tokenid).nonzero()
+        
+        # apply sampling if requested
+        if sample is not None:
+            offsets = offsets[self.rng.integers(0, len(offsets), int(sample * len(offsets)))]
+        
+        # get offsets partitioned by index shard
+        partitioned_offsets = partition(offsets, self.segment_starts)            
+        
+        # get the requested embeddings
+        all_tensors = [ rrm.part_mmap[shard].mmap[shard_portion - self.segment_starts[shard]] for shard, shard_portion in enumerate(partitioned_offsets) if shard_portion.shape[0] > 0 ]
+
+        # if requested, make a single tensor - involves a further copy
+        if flatten:
+            all_tensors = torch.cat(all_tensors).squeeze()
+        return all_tensors
 
     def end_to_end(self) -> TransformerBase:
         """
