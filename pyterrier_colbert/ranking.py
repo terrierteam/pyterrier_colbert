@@ -105,6 +105,12 @@ class re_ranker_mmap:
             assert False, "Unknown memtype %s" % memtype
         return mmaps
 
+    def num_docs(self):
+        """
+        Return number of documents in the index
+        """
+        return sum([len(x) for x in self.part_doclens])
+
     def get_embedding(self, pid):
         # In which pt file we need to look the given pid
         part_id = np.searchsorted(self.part_pid_end_offsets, pid)
@@ -300,7 +306,7 @@ class ColBERTFactory():
                              version=version, 
                              clz=_ColBERTFactoryconstruct, **kwargs)
         
-    def _rrm(self):
+    def _rrm(self) -> re_ranker_mmap:
         """
         Returns an instance of the re_ranker_mmap class.
         Only one is created, if necessary.
@@ -316,6 +322,9 @@ class ColBERTFactory():
             verbose=self.verbose, 
             memtype=self.memtype)
         return self.rrm
+
+    def __len__(self):
+        return self._rrm().num_docs()
         
     def nn_term(self, cf=True, df=False):
         """
