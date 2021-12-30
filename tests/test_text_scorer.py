@@ -11,7 +11,8 @@ class TestIndexing(unittest.TestCase):
             pt.init()
         self.test_dir = tempfile.mkdtemp()
         checkpoint="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
-        self.factory = ColBERTFactory(checkpoint, None, None, gpu=False)
+        from pyterrier_colbert.ranking import ColBERTModelOnlyFactory
+        self.factory = ColBERTModelOnlyFactory(checkpoint, gpu=False)
         self.df = pt.new.ranked_documents([[1, 2]])
         self.df["text"] = [ "professor proton mixed the chemicals", "chemical brothers played that tune"]
         self.df["query"] = ["chemical reactions", "chemical reactions"]
@@ -20,6 +21,13 @@ class TestIndexing(unittest.TestCase):
         scorer = self.factory.text_scorer()
         rtr = scorer.transform(self.df)
         self.assertTrue("score" in rtr.columns)
+
+    def test_query_encoder(self):
+        queries = pt.new.queries(["chemical reactions"])
+        qend = self.factory.query_encoder()
+        rtr = qend(queries)
+        self.assertTrue("query_embs" in rtr.columns)
+        self.assertTrue("query_toks" in rtr.columns)
 
     def test_text_scorer_with_qembs(self):
         scorer = self.factory.text_scorer()
