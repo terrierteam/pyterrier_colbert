@@ -803,7 +803,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         assert not batch
         def _single_retrieve(queries_df):
             rtr = []
-            weights_set = "query_embs" in queries_df.columns
+            weights_set = "query_weights" in queries_df.columns
             iter = queries_df.itertuples()
             iter = tqdm(iter, unit="q") if verbose else iter
             for row in iter:
