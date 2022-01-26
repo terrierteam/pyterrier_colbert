@@ -841,10 +841,10 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                             _pid = int(pid)
                             qpos_scores[_pid] = max(qpos_scores[_pid], score)
                         for (pid, score) in qpos_scores.items():
-                            pid2score[pid] += score * qweights[qpos]
+                            pid2score[pid] += score * qweights[0, qpos]
                     else:
                         for (score, pid) in zip(scores, pids):
-                            pid2score[int(pid)] += score * qweights[qpos]
+                            pid2score[int(pid)] += score * qweights[0, qpos]
                 for pid, score in pid2score.items():
                     rtr.append([qid, row.query, pid, score, ids[0], Q_cpu])
 
