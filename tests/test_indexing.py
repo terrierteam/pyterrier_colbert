@@ -63,7 +63,8 @@ class TestIndexing(unittest.TestCase):
                 ((
                     factory.query_encoder() 
                     >> factory.ann_retrieve_score(query_encoded=True)
-                    >> ColbertPRF(factory, fb_docs=3, fb_embs=10, beta=1.0, k=24, return_docs=True)
+                    >> ColbertPRF(factory, fb_docs=3, fb_embs=10, beta=1.0, k=24, return_docs=False)
+                    >> factory.ann_retrieve_score(query_encoded=True)
                     >> factory.index_scorer(query_encoded=True) 
                     ), True, "PRF rank and ANN with query encoded"),
             ]:
