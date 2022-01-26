@@ -846,10 +846,10 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                         for (score, pid) in zip(scores, pids):
                             pid2score[int(pid)] += score * qweights[0, qpos]
                 for pid, score in pid2score.items():
-                    rtr.append([qid, row.query, pid, score, ids[0], Q_cpu])
+                    rtr.append([qid, row.query, pid, score, ids[0], Q_cpu, qweights[0]])
 
             #TODO this _add_docnos shouldnt be needed
-            return self._add_docnos( pt.model.add_ranks(pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs'])) )
+            return self._add_docnos( pt.model.add_ranks(pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs', 'query_weights'])) )
         t = pt.apply.by_query(_single_retrieve, add_ranks=add_ranks, verbose=verbose)
         import types
         def __reduce_ex__(t2, proto):
