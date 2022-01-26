@@ -814,14 +814,14 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                     ids = np.expand_dims(qtoks, axis=0)
                     Q_cpu = embs.cpu()
                     Q_cpu_numpy = embs.float().numpy()
-                    qweights = row.query_weights if weights_set else np.ones(ids.shape)
+                    qweights = row.query_weights if weights_set else torch.ones(ids.shape)
                 else:
                     with torch.no_grad():
                         Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                     Q_f = Q[0:1, :, : ]
                     Q_cpu = Q[0, :, :].cpu()
                     Q_cpu_numpy = Q_cpu.float().numpy()
-                    qweights = np.ones(ids.shape)
+                    qweights = torch.ones(ids.shape)
                 
                 if hasattr(self._faiss_index(), 'faiss_index'):
                     all_scores, all_embedding_ids = self._faiss_index().faiss_index.search(Q_cpu_numpy, faiss_depth)
