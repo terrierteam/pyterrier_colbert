@@ -1,6 +1,7 @@
 import unittest
 import pandas as pd
 import tempfile
+
 CHECKPOINT="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
 class TestIndexing(unittest.TestCase):
 
@@ -20,6 +21,7 @@ class TestIndexing(unittest.TestCase):
         indexer.index([ next(iter) for i in range(200) ])
 
         import pyterrier_colbert.pruning as pruning
+        from pyterrier_colbert.ranking import ColbertPRF
             
         for factory in [indexer.ranking_factory()]:
 
@@ -49,6 +51,21 @@ class TestIndexing(unittest.TestCase):
                     >> factory.set_retrieve(query_encoded=True)
                     >> factory.index_scorer(query_encoded=False) 
                     ), True, "QEP CLS"),
+                ((
+                    factory.query_encoder() >> factory.ann_retrieve_score(query_encoded=True)
+                    ), True, "ANN with query encoded"),
+                ((
+                    factory.query_encoder() 
+                    >> factory.ann_retrieve_score(query_encoded=True)
+                    >> ColbertPRF(factory, fb_docs=3, fb_embs=10, beta=1.0, k=24, return_docs=True)
+                    >> factory.index_scorer(query_encoded=True) 
+                    ), True, "PRF rerank and ANN with query encoded"),
+                ((
+                    factory.query_encoder() 
+                    >> factory.ann_retrieve_score(query_encoded=True)
+                    >> ColbertPRF(factory, fb_docs=3, fb_embs=10, beta=1.0, k=24, return_docs=True)
+                    >> factory.index_scorer(query_encoded=True) 
+                    ), True, "PRF rank and ANN with query encoded"),
             ]:
                 with self.subTest(name):
                     print("Running subtest %s" % name)
