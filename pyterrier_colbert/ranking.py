@@ -803,6 +803,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         assert not batch
         def _single_retrieve(queries_df):
             rtr = []
+            weights_set = "query_embs" in queries_df.columns
             iter = queries_df.itertuples()
             iter = tqdm(iter, unit="q") if verbose else iter
             for row in iter:
@@ -813,12 +814,14 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                     ids = np.expand_dims(qtoks, axis=0)
                     Q_cpu = embs.cpu()
                     Q_cpu_numpy = embs.float().numpy()
+                    qweights = row.query_weights if weights_set else np.ones(ids.shape)
                 else:
                     with torch.no_grad():
                         Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                     Q_f = Q[0:1, :, : ]
                     Q_cpu = Q[0, :, :].cpu()
                     Q_cpu_numpy = Q_cpu.float().numpy()
+                    qweights = np.ones(ids.shape)
                 
                 if hasattr(self._faiss_index(), 'faiss_index'):
                     all_scores, all_embedding_ids = self._faiss_index().faiss_index.search(Q_cpu_numpy, faiss_depth)
@@ -838,10 +841,10 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                             _pid = int(pid)
                             qpos_scores[_pid] = max(qpos_scores[_pid], score)
                         for (pid, score) in qpos_scores.items():
-                            pid2score[pid] += score
+                            pid2score[pid] += score * qweights[qpos]
                     else:
                         for (score, pid) in zip(scores, pids):
-                            pid2score[int(pid)] += score
+                            pid2score[int(pid)] += score * qweights[qpos]
                 for pid, score in pid2score.items():
                     rtr.append([qid, row.query, pid, score, ids[0], Q_cpu])
 
