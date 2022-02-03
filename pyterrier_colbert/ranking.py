@@ -803,6 +803,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         assert not batch
         def _single_retrieve(queries_df):
             rtr = []
+            weights_set = "query_weights" in queries_df.columns
             iter = queries_df.itertuples()
             iter = tqdm(iter, unit="q") if verbose else iter
             for row in iter:
@@ -813,19 +814,24 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                     ids = np.expand_dims(qtoks, axis=0)
                     Q_cpu = embs.cpu()
                     Q_cpu_numpy = embs.float().numpy()
+                    #NB: ids is 2D
+                    qweights = row.query_weights.unsqueeze(0) if weights_set else torch.ones(ids.shape)
                 else:
                     with torch.no_grad():
                         Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                     Q_f = Q[0:1, :, : ]
                     Q_cpu = Q[0, :, :].cpu()
                     Q_cpu_numpy = Q_cpu.float().numpy()
+                    #NB: ids is 2D
+                    qweights = torch.ones(ids.shape)
                 
                 if hasattr(self._faiss_index(), 'faiss_index'):
                     all_scores, all_embedding_ids = self._faiss_index().faiss_index.search(Q_cpu_numpy, faiss_depth)
                 else:
                     all_scores, all_embedding_ids = self._faiss_index().search(Q_cpu_numpy, faiss_depth, verbose=verbose)
                 pid2score = defaultdict(float)
-                for qpos in range(ids.shape[1]):
+                # dont rely on ids.shape here for the number of query embeddings in the query
+                for qpos in range(Q_cpu_numpy.shape[0]):
                     scores = all_scores[qpos]
                     embedding_ids = all_embedding_ids[qpos]
                     if hasattr(self.faiss_index, 'emb2pid'):
@@ -838,15 +844,15 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                             _pid = int(pid)
                             qpos_scores[_pid] = max(qpos_scores[_pid], score)
                         for (pid, score) in qpos_scores.items():
-                            pid2score[pid] += score
+                            pid2score[pid] += score * qweights[0, qpos].item()
                     else:
                         for (score, pid) in zip(scores, pids):
-                            pid2score[int(pid)] += score
+                            pid2score[int(pid)] += score * qweights[0, qpos].item()
                 for pid, score in pid2score.items():
-                    rtr.append([qid, row.query, pid, score, ids[0], Q_cpu])
+                    rtr.append([qid, row.query, pid, score, ids[0], Q_cpu, qweights[0]])
 
             #TODO this _add_docnos shouldnt be needed
-            return self._add_docnos( pt.model.add_ranks(pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs'])) )
+            return self._add_docnos( pt.model.add_ranks(pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs', 'query_weights'])) )
         t = pt.apply.by_query(_single_retrieve, add_ranks=add_ranks, verbose=verbose)
         import types
         def __reduce_ex__(t2, proto):
