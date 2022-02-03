@@ -158,7 +158,8 @@ class CollectionEncoder():
 
             pid, passage, *other = line_parts
 
-            assert len(passage) >= 1
+            if len(passage) == 0:
+                print("Skipping empty passage at %d" % line_idx)
 
             if len(other) >= 1:
                 title, *_ = other
