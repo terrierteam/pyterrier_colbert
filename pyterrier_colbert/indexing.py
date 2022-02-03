@@ -160,6 +160,7 @@ class CollectionEncoder():
 
             if len(passage) == 0:
                 print("Skipping empty passage at %d" % line_idx)
+                continue
 
             if len(other) >= 1:
                 title, *_ = other
@@ -248,8 +249,10 @@ class CollectionEncoder_Generator(CollectionEncoder):
                 title = line["title"]
                 passage = title + ' | ' + passage
                 
-            assert len(passage) >= 1
-
+            if len(passage) == 0:
+                print("Skipping empty passage at %d" % line_idx)
+                continue
+            
             batch.append(passage)
 
         return batch
