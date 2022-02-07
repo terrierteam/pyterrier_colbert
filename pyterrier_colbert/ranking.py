@@ -800,7 +800,10 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         #output: qid, query, docid, [docno], score, rank
         #OR
         #output: qid, query, query_embs, query_toks, query_weights, docid, [docno], score, rank
-        assert not batch
+        assert not batch, "batching not supported yet"
+        assert hasattr(self._faiss_index(), 'faiss_index'), "multi index support removed"
+        # all_scores, all_embedding_ids = self._faiss_index().search(Q_cpu_numpy, faiss_depth, verbose=verbose)
+        # pids = np.searchsorted(self.faiss_index.doc_offsets, embedding_ids, side='right') - 1
         def _single_retrieve(queries_df):
             rtr = []
             weights_set = "query_weights" in queries_df.columns
@@ -825,29 +828,34 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                     #NB: ids is 2D
                     qweights = torch.ones(ids.shape)
                 
-                if hasattr(self._faiss_index(), 'faiss_index'):
-                    all_scores, all_embedding_ids = self._faiss_index().faiss_index.search(Q_cpu_numpy, faiss_depth)
-                else:
-                    all_scores, all_embedding_ids = self._faiss_index().search(Q_cpu_numpy, faiss_depth, verbose=verbose)
+                all_scores, all_embedding_ids = self._faiss_index().faiss_index.search(Q_cpu_numpy, faiss_depth)
+                all_pids = self.faiss_index.emb2pid[all_embedding_ids]
                 pid2score = defaultdict(float)
+                num_docs = all_scores.shape[1]
+
                 # dont rely on ids.shape here for the number of query embeddings in the query
-                for qpos in range(Q_cpu_numpy.shape[0]):
-                    scores = all_scores[qpos]
-                    embedding_ids = all_embedding_ids[qpos]
-                    if hasattr(self.faiss_index, 'emb2pid'):
-                        pids = self.faiss_index.emb2pid[embedding_ids]
-                    else:
-                        pids = np.searchsorted(self.faiss_index.doc_offsets, embedding_ids, side='right') - 1
-                    if maxsim:
+                num_qembs = Q_cpu_numpy.shape[0]
+                
+                if maxsim:
+                    for qpos in range(num_qembs):
                         qpos_scores = defaultdict(float)
-                        for (score, pid) in zip(scores, pids):
-                            _pid = int(pid)
+                        scores = all_scores[qpos]
+                        for offset in range(num_docs):
+                            _pid = all_pids[qpos, offset].item()
+                            score = scores[offset].item()
                             qpos_scores[_pid] = max(qpos_scores[_pid], score)
+
+                        qpos_w = qweights[0, qpos].item()
                         for (pid, score) in qpos_scores.items():
-                            pid2score[pid] += score * qweights[0, qpos].item()
-                    else:
+                            pid2score[pid] += score * qpos_w
+                else:
+                    for qpos in range(num_qembs):
+                        qpos_w = qweights[0, qpos].item()
+                        scores = all_scores[qpos]
+                        pids = all_pids[qpos]
                         for (score, pid) in zip(scores, pids):
-                            pid2score[int(pid)] += score * qweights[0, qpos].item()
+                            pid2score[pid.item()] += score.item() * qpos_w
+                        
                 for pid, score in pid2score.items():
                     rtr.append([qid, row.query, pid, score, ids[0], Q_cpu, qweights[0]])
 
