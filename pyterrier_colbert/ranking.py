@@ -772,7 +772,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer(query_encoded=True)
 
-    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True) -> TransformerBase:
+    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True, add_docnos=True) -> TransformerBase:
         """
         Like set_retrieve(), uses the ColBERT FAISS index to retrieve documents, but scores them using the maxsim on the approximate
         (quantised) nearest neighbour scores. 
@@ -851,9 +851,13 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                 for pid, score in pid2score.items():
                     rtr.append([qid, row.query, pid, score, ids[0], Q_cpu, qweights[0]])
 
-            #TODO this _add_docnos shouldnt be needed
-            return self._add_docnos( pt.model.add_ranks(pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs', 'query_weights'])) )
-        t = pt.apply.by_query(_single_retrieve, add_ranks=add_ranks, verbose=verbose)
+            rtr = pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs', 'query_weights'])
+            if add_docnos:
+                rtr = self._add_docnos(rtr)
+            if add_ranks:
+                rtr = pt.model.add_ranks(rtr)
+            return rtr
+        t = pt.apply.by_query(_single_retrieve, add_ranks=False, verbose=verbose)
         import types
         def __reduce_ex__(t2, proto):
             kwargs = { 'batch':batch, 'query_encoded': query_encoded, 'faiss_depth' : faiss_depth, 'maxsim': maxsim}
