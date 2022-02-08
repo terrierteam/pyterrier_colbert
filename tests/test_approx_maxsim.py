@@ -31,6 +31,10 @@ class TestApprox(unittest.TestCase):
         import pyterrier_colbert.ranking
         self._checkimpl(pyterrier_colbert.ranking._approx_maxsim_defaultdict)
 
+    def test_maxsim_sparse(self):
+        import pyterrier_colbert.ranking
+        self._checkimpl(pyterrier_colbert.ranking._approx_maxsim_sparse)
+
 
     
 

@@ -1044,10 +1044,10 @@ def _approx_maxsim_numpy(faiss_scores, faiss_ids, mapping, weights, score_buffer
     for rank in range(faiss_depth):
         rank_pids = pids[:, rank]
         score_buffer[rank_pids, qemb_ids] = np.maximum(score_buffer[rank_pids, qemb_ids], faiss_scores[:, rank])
-    final = np.sum(score_buffer * weights, axis=1)
     all_pids = np.unique(pids)
-    score_buffer[all_pids, :] = 0
-    return all_pids, final[all_pids]
+    final = np.sum(score_buffer[all_pids, : ] * weights, axis=1)
+    score_buffer[all_pids, : ] = 0
+    return all_pids, final
 
 def _approx_maxsim_defaultdict(all_scores, all_embedding_ids, mapping, qweights, ignore2):
     from collections import defaultdict
@@ -1065,3 +1065,17 @@ def _approx_maxsim_defaultdict(all_scores, all_embedding_ids, mapping, qweights,
         for (pid, score) in qpos_scores.items():
             pid2score[pid] += score * qweights[ qpos].item()
     return list(pid2score.keys()), list(pid2score.values())
+
+def _approx_maxsim_sparse(all_scores, all_embedding_ids, mapping, qweights, ignore2):
+    from scipy.sparse import csr_matrix
+    import numpy as np
+    index_size = 9_000_000 # TODO: use total # of documents here instead of hardcoding
+    num_qembs = all_scores.shape[0]
+    faiss_depth = all_scores.shape[1]
+    all_pids = mapping[all_embedding_ids]
+
+    pid2score = csr_matrix((1, index_size))
+    for qpos in range( num_qembs ):
+        a = csr_matrix((all_scores[qpos], (np.arange(faiss_depth), all_pids[qpos])), shape=(faiss_depth, index_size))
+        pid2score += a.max(axis=0) * qweights[qpos]
+    return (pid2score.indices, pid2score.data)
