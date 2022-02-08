@@ -772,7 +772,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer(query_encoded=True)
 
-    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True, add_docnos=True) -> TransformerBase:
+    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True, add_docnos=True, num_qembs_hint=32) -> TransformerBase:
         """
         Like set_retrieve(), uses the ColBERT FAISS index to retrieve documents, but scores them using the maxsim on the approximate
         (quantised) nearest neighbour scores. 
@@ -786,7 +786,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         - verbose(bool): Display tqdm progress bar during retrieval
         - maxsim(bool): Whether to use approx maxsim (True) or approx sumsim (False). See our CIKM 2021 paper for more details. Default is True.
         - add_ranks(bool): Whether to use add the rank column, to allow rank cutoffs to be applied. Default is True. Response time will be enhanced if False.
-        
+        - add_docnos(bool):  Whether to use add the docno column. Default is True. Response time will be enhanced if False.
 
         Reference:
         
@@ -797,13 +797,21 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         #OR
         #input: qid, query, query_embs, query_toks, query_weights
 
-        #output: qid, query, docid, [docno], score, rank
+        #output: qid, query, docid, [docno], score, [rank]
         #OR
-        #output: qid, query, query_embs, query_toks, query_weights, docid, [docno], score, rank
+        #output: qid, query, query_embs, query_toks, query_weights, docid, [docno], score, [rank]
         assert not batch, "batching not supported yet"
         assert hasattr(self._faiss_index(), 'faiss_index'), "multi index support removed"
-        # all_scores, all_embedding_ids = self._faiss_index().search(Q_cpu_numpy, faiss_depth, verbose=verbose)
-        # pids = np.searchsorted(self.faiss_index.doc_offsets, embedding_ids, side='right') - 1
+          # all_scores, all_embedding_ids = self._faiss_index().search(Q_cpu_numpy, faiss_depth, verbose=verbose)
+          # pids = np.searchsorted(self.faiss_index.doc_offsets, embedding_ids, side='right') - 1
+        assert maxsim, "only maxsim supported now."
+
+        # this is a big malloc, sized for the number of docs in the collection
+        # for this reason, we reuse it across queries. All used values are reset
+        # to zero afer use.
+        import numpy as np
+        score_buffer = np.zeros( (len(self), num_qembs_hint ) )
+
         def _single_retrieve(queries_df):
             rtr = []
             weights_set = "query_weights" in queries_df.columns
@@ -829,35 +837,16 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                     qweights = torch.ones(ids.shape)
                 
                 all_scores, all_embedding_ids = self._faiss_index().faiss_index.search(Q_cpu_numpy, faiss_depth)
-                all_pids = self.faiss_index.emb2pid[all_embedding_ids]
-                pid2score = defaultdict(float)
-                num_docs = all_scores.shape[1]
-
-                # dont rely on ids.shape here for the number of query embeddings in the query
-                num_qembs = Q_cpu_numpy.shape[0]
+                nonlocal score_buffer
+                # we reuse this buffer, but it has to be big enough for expanded queries
+                if score_buffer.shape[1] < Q_cpu_numpy.shape[0]:
+                  score_buffer = np.zeros( (len(self), Q_cpu_numpy.shape[0] ) )
                 
-                if maxsim:
-                    for qpos in range(num_qembs):
-                        qpos_scores = defaultdict(float)
-                        scores = all_scores[qpos]
-                        for offset in range(num_docs):
-                            _pid = all_pids[qpos, offset].item()
-                            score = scores[offset].item()
-                            qpos_scores[_pid] = max(qpos_scores[_pid], score)
+                pids, final_scores = _approx_maxsim_numpy(all_scores, all_embedding_ids, self.faiss_index.emb2pid.numpy(), qweights[0].numpy(), score_buffer)
 
-                        qpos_w = qweights[0, qpos].item()
-                        for (pid, score) in qpos_scores.items():
-                            pid2score[pid] += score * qpos_w
-                else:
-                    for qpos in range(num_qembs):
-                        qpos_w = qweights[0, qpos].item()
-                        scores = all_scores[qpos]
-                        pids = all_pids[qpos]
-                        for (score, pid) in zip(scores, pids):
-                            pid2score[pid.item()] += score.item() * qpos_w
-                        
-                for pid, score in pid2score.items():
-                    rtr.append([qid, row.query, pid, score, ids[0], Q_cpu, qweights[0]])
+                for offset in range(pids.shape[0]):
+                    rtr.append([qid, row.query, pids[offset], final_scores[offset], ids[0], Q_cpu, qweights[0]])
+                    
 
             rtr = pd.DataFrame(rtr, columns=["qid","query",'docid', 'score','query_toks','query_embs', 'query_weights'])
             if add_docnos:
@@ -878,43 +867,6 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         t.__reduce_ex__ = types.MethodType(__reduce_ex__, t)
         t.__getstate__ = types.MethodType(lambda t2 : None, t)
         return t
-    
-    def fetch_index_encodings(factory, verbose=False, ids=False) -> TransformerBase:
-        """
-        New encoder that gets embeddings from rrm and stores into doc_embs column.
-        If ids is True, then an additional doc_toks column is also added. This requires 
-        a Faiss NN term index data structure, i.e. indexing should have ids=True set.
-        input: docid, ...
-        output: ditto + doc_embs [+ doc_toks]
-        """
-        def _get_embs(df):
-            rrm = factory._rrm() # _rrm() instead of rrm because we need to check it has already been loaded.
-            if verbose:
-                import pyterrier as pt
-                pt.tqdm.pandas(desc="fetch_index_encodings")
-                df["doc_embs"] = df.docid.progress_apply(rrm.get_embedding) 
-            else:
-                df["doc_embs"] = df.docid.apply(rrm.get_embedding)
-            return df
-
-        def _get_tok_ids(df):
-            fnt = factory.nn_term(False)
-            def _get_toks(pid):
-                end = fnt.end_offsets[pid]
-                start = end - fnt.doclens[pid]
-                return fnt.emb2tid[start:end].clone()
-
-            if verbose:
-                import pyterrier as pt
-                pt.tqdm.pandas()
-                df["doc_toks"] = df.docid.progress_apply(_get_toks)
-            else:
-                df["doc_toks"] = df.docid.apply(_get_toks)
-            return df
-        rtr = pt.apply.by_query(_get_embs, add_ranks=False)
-        if ids:
-            rtr = rtr >> pt.apply.by_query(_get_tok_ids, add_ranks=False)
-        return rtr
 
 
     def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
@@ -1082,3 +1034,34 @@ class ColbertPRF(TransformerBase):
                 new_query_df = new_query_df.rename(columns={'docno_x':'docno'})
             rtr.append(new_query_df)
         return pd.concat(rtr)
+
+
+def _approx_maxsim_numpy(faiss_scores, faiss_ids, mapping, weights, score_buffer):
+    import numpy as np
+    faiss_depth = faiss_scores.shape[1]
+    pids = mapping[faiss_ids]
+    qemb_ids = np.arange(faiss_ids.shape[0])
+    for rank in range(faiss_depth):
+        rank_pids = pids[:, rank]
+        score_buffer[rank_pids, qemb_ids] = np.maximum(score_buffer[rank_pids, qemb_ids], faiss_scores[:, rank])
+    final = np.sum(score_buffer * weights, axis=1)
+    all_pids = np.unique(pids)
+    score_buffer[all_pids, :] = 0
+    return all_pids, final[all_pids]
+
+def _approx_maxsim_defaultdict(all_scores, all_embedding_ids, mapping, qweights, ignore2):
+    from collections import defaultdict
+    pid2score = defaultdict(float)
+
+    # dont rely on ids.shape here for the number of query embeddings in the query
+    for qpos in range(all_scores.shape[0]):
+        scores = all_scores[qpos]
+        embedding_ids = all_embedding_ids[qpos]
+        pids = mapping[embedding_ids]
+        qpos_scores = defaultdict(float)
+        for (score, pid) in zip(scores, pids):
+            _pid = int(pid)
+            qpos_scores[_pid] = max(qpos_scores[_pid], score)
+        for (pid, score) in qpos_scores.items():
+            pid2score[pid] += score * qweights[ qpos].item()
+    return list(pid2score.keys()), list(pid2score.values())
