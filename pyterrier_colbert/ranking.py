@@ -868,6 +868,42 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         t.__getstate__ = types.MethodType(lambda t2 : None, t)
         return t
 
+    def fetch_index_encodings(factory, verbose=False, ids=False) -> TransformerBase:
+        """
+        New encoder that gets embeddings from rrm and stores into doc_embs column.
+        If ids is True, then an additional doc_toks column is also added. This requires 
+        a Faiss NN term index data structure, i.e. indexing should have ids=True set.
+        input: docid, ...
+        output: ditto + doc_embs [+ doc_toks]
+        """
+        def _get_embs(df):
+            rrm = factory._rrm() # _rrm() instead of rrm because we need to check it has already been loaded.
+            if verbose:
+                import pyterrier as pt
+                pt.tqdm.pandas(desc="fetch_index_encodings")
+                df["doc_embs"] = df.docid.progress_apply(rrm.get_embedding) 
+            else:
+                df["doc_embs"] = df.docid.apply(rrm.get_embedding)
+            return df
+
+        def _get_tok_ids(df):
+            fnt = factory.nn_term(False)
+            def _get_toks(pid):
+                end = fnt.end_offsets[pid]
+                start = end - fnt.doclens[pid]
+                return fnt.emb2tid[start:end].clone()
+
+            if verbose:
+                import pyterrier as pt
+                pt.tqdm.pandas()
+                df["doc_toks"] = df.docid.progress_apply(_get_toks)
+            else:
+                df["doc_toks"] = df.docid.apply(_get_toks)
+            return df
+        rtr = pt.apply.by_query(_get_embs, add_ranks=False)
+        if ids:
+            rtr = rtr >> pt.apply.by_query(_get_tok_ids, add_ranks=False)
+        return rtr
 
     def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
         """
