@@ -608,6 +608,9 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         
         # this is when queries have NOT already been encoded
         def _single_retrieve(queries_df):
+            # we know that query_encoded=False
+            if "query_embs" in queries_df.columns:
+                warn("set_retrieve() used with query_encoded=False, but query_embs column present in input. Should you use query_encoded=True?")
             rtr = []
             iter = queries_df.itertuples()
             iter = tqdm(iter, unit="q")  if verbose else iter
@@ -633,6 +636,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
 
         # this is when queries have already been encoded
         def _single_retrieve_qembs(queries_df):
+
             rtr = []
             query_weights = "query_weights" in queries_df.columns
             iter = queries_df.itertuples()
@@ -689,6 +693,8 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         rrm = self._rrm()
 
         def rrm_scorer(qid_group):
+            if "query_embs" in qid_group.columns:
+                warn("index_scorer() used with query_encoded=False, but query_embs column present in input. Should you use query_encoded=True?")
             qid_group = qid_group.copy()
             if "docid" not in qid_group.columns:
                 qid_group = self._add_docids(qid_group)
@@ -828,6 +834,8 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                     #NB: ids is 2D
                     qweights = row.query_weights.unsqueeze(0) if weights_set else torch.ones(ids.shape)
                 else:
+                    if "query_embs" in queries_df.columns:
+                        warn("ann_retrieve_score() used with query_encoded=False, but query_embs column present in input. Should you use query_encoded=True?")
                     with torch.no_grad():
                         Q, ids, masks = self.args.inference.queryFromText([row.query], bsize=512, with_ids=True)
                     Q_f = Q[0:1, :, : ]
