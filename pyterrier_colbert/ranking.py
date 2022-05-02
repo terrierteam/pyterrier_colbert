@@ -554,6 +554,16 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             memtype=self.memtype)
         return self.rrm
 
+    def load_index(self, embeddings=True, faiss=False):
+        """
+        Forces the embeddigs and faiss indices to be loaded (into memory).
+        If memtype or faisstype are set to mmap, then the mmapping is performed instead.
+        """
+        if embeddings:
+            self._rrm()
+        if faiss:
+            self._faiss_index()
+
     def __len__(self):
         if self.numdocs > -1:
             return self.numdocs
