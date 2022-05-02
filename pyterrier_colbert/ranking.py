@@ -482,6 +482,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         self._faissnn = None
         self.index_root = index_root
         self.index_name = index_name
+        self.numdocs = -1
         if index_root is None or index_name is None:
             warn("No index_root and index_name specified - no index ranking possible")
         else:
@@ -493,6 +494,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                     # support reverse docno lookup in memory
                     self.docno2docid = { docno : docid for docid, docno in enumerate(self.docid2docno) }
                     self.docid_as_docno = False
+                self.numdocs = len(self.docid2docno)
             else:
                 self.docid_as_docno = True
         
@@ -553,6 +555,8 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         return self.rrm
 
     def __len__(self):
+        if self.numdocs > -1:
+            return self.numdocs
         return self._rrm().num_docs()
         
     def nn_term(self, cf=True, df=False):
