@@ -11,7 +11,8 @@ jobs:
         java: [13]
         os: ['ubuntu-latest'] # 
         architecture: ['x64']
-        terrier: ['snapshot'] #'5.3', '5.4-SNAPSHOT', 
+        terrier: ['snapshot'] #'5.3', '5.4-SNAPSHOT',
+        transformers: ['<4', ">=4"] 
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -49,6 +50,7 @@ jobs:
         conda install pip
         conda install mkl_fft -y
         conda install -c pytorch faiss-cpu=1.6.3
+        pip install transformers${{matrix.transformers}}
         pip install --upgrade --upgrade-strategy eager git+https://github.com/terrier-org/pyterrier.git#egg=python-terrier
         pip install --upgrade --upgrade-strategy eager -r requirements.txt
         #install this software

@@ -27,7 +27,13 @@ def load_checkpoint(path, model, optimizer=None, do_print=True):
 
     checkpoint['model_state_dict'] = new_state_dict
 
-    model.load_state_dict(checkpoint['model_state_dict'])
+    import transformers
+    from packaging import version
+    strict = True
+    if version.parse(transformers.__version__).major >= 4 and 'bert.embeddings.position_ids' in checkpoint:
+        strict=False
+
+    model.load_state_dict(checkpoint['model_state_dict'], strict=strict)
 
     if optimizer:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
