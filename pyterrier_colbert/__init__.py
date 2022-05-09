@@ -31,8 +31,10 @@ def load_checkpoint(path, model, optimizer=None, do_print=True):
     from packaging import version
     strict = True
     if version.parse(transformers.__version__).major >= 4 and 'bert.embeddings.position_ids' in checkpoint:
-        strict=False
-
+        strict = False
+    print("ver 4", version.parse(transformers.__version__).major >= 4)
+    print("key found", 'bert.embeddings.position_ids' in checkpoint)
+    print("strict", strict)
     model.load_state_dict(checkpoint['model_state_dict'], strict=strict)
 
     if optimizer:
