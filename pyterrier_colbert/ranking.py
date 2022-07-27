@@ -270,6 +270,23 @@ class ColBERTModelOnlyFactory():
             return df
         
         return pt.apply.generic(row_apply)
+    
+    def text_encoder(self,detach=True):
+        """
+        Returns a transformer that can encode the text using ColBERT's model.
+        input: qid, text
+        output: qid, text, doc_embs, doc_toks,
+        """
+        def _encode_text(row):
+            with torch.no_grad():
+                embsD, idsD = self.args.inference.docFromText([row.text], with_ids=True)
+                if detach:
+                    embsD = embsD.cpu()
+                return pd.Series([embsD[0],idsD[0]])
+        def row_apply(df):
+            df[["doc_embs", "doc_toks"]] = df.apply(_encode_text, axis=1)
+            return df
+        return pt.apply.generic(row_apply)
 
     def explain_text(self, query : str, document : str):
         """
