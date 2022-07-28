@@ -1018,7 +1018,10 @@ class ColbertPRF(TransformerBase):
         
     def transform_query(self, topic_and_res : pd.DataFrame) -> pd.DataFrame:
         topic_and_res = topic_and_res.sort_values('rank')
-        prf_embs = torch.cat([self.pytcfactory.rrm.get_embedding(docid) for docid in topic_and_res.head(self.fb_docs).docid.values])
+        if 'doc_embs' in topic_and_res.columns:
+            prf_embs = torch.cat(topic_and_res.head(self.fb_docs).doc_embs.values)
+        else:
+            prf_embs = torch.cat([self.pytcfactory.rrm.get_embedding(docid) for docid in topic_and_res.head(self.fb_docs).docid.values])
         
         # perform clustering on the document embeddings to identify the representative embeddings
         centroids = self._get_centroids(prf_embs)
@@ -1063,13 +1066,12 @@ class ColbertPRF(TransformerBase):
         # generate the revised query dataframe row
         rtr = pd.DataFrame([
             [first_row.qid, 
-             first_row.docno,
              first_row.query, 
              newemb, 
              toks, 
              weights ]
             ],
-            columns=["qid","docno", "query", "query_embs", "query_toks", "query_weights"])
+            columns=["qid", "query", "query_embs", "query_toks", "query_weights"])
         return rtr
 
     def transform(self, topics_and_docs : pd.DataFrame) -> pd.DataFrame:
@@ -1080,16 +1082,19 @@ class ColbertPRF(TransformerBase):
                 raise KeyError("Input missing column %s, found %s" % (col, str(list(topics_and_docs.columns))) )
         
         #restore the docid column if missing
-        if "docid" not in topics_and_docs:
+        if "docid" not in topics_and_docs.columns and "doc_embs" not in topics_and_docs.columns:
             topics_and_docs = self.pytcfactory._add_docids(topics_and_docs)
         
         rtr = []
         for qid, res in topics_and_docs.groupby("qid"):
             new_query_df = self.transform_query(res)     
             if self.return_docs:
-                new_query_df = res[["qid", "docno", "docid"]].merge(new_query_df, on=["qid"])
+                rtr_cols = ["qid", "docno", "docid"]
+                for col in ["doc_embs", "doc_toks"]:
+                    if col in res.columns:
+                        rtr_cols.append(col)
+                new_query_df = res[rtr_cols].merge(new_query_df, on=["qid"])
                 
-                new_query_df = new_query_df.rename(columns={'docno_x':'docno'})
             rtr.append(new_query_df)
         return pd.concat(rtr)
 
