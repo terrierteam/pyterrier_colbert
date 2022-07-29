@@ -29,7 +29,7 @@ class TestTextScoring(unittest.TestCase):
         pipe = (
             self.factory.query_encoder() 
             >> self.factory.text_encoder() 
-            >> ColbertPRF(self.factory, 2, 2, return_docs=True, fb_docs=2)
+            >> ColbertPRF(self.factory, 5, 2, return_docs=True, fb_docs=2)
             >> self.factory.scorer()
         )
         
