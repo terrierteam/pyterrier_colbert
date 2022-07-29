@@ -270,6 +270,30 @@ class ColBERTModelOnlyFactory():
             return df
         
         return pt.apply.generic(row_apply)
+    
+    def text_encoder(self, detach=True, batch_size=8):
+        """
+        Returns a transformer that can encode the text using ColBERT's model.
+        input: qid, text
+        output: qid, text, doc_embs, doc_toks,
+        """
+        def chunker(seq, size):
+            for pos in range(0, len(seq), size):
+                yield seq.iloc[pos:pos + size]
+        def df_apply(df):
+            with torch.no_grad():
+                rtr_embs = []
+                rtr_toks = []
+                for chunk in chunker(df, batch_size):
+                    embsD, idsD = self.args.inference.docFromText(chunk.text.tolist(), with_ids=True)
+                    if detach:
+                        embsD = embsD.cpu()
+                    rtr_embs.extend([embsD[i, : ,: ] for i in range(embsD.shape[0])])
+                    rtr_toks.extend(idsD)
+            df["doc_embs"] = pd.Series(rtr_embs)
+            df["doc_toks"] = pd.Series(rtr_toks)
+            return df
+        return pt.apply.generic(df_apply)
 
     def explain_text(self, query : str, document : str):
         """
@@ -380,7 +404,7 @@ class ColBERTModelOnlyFactory():
 
         return pt.apply.generic(_text_scorer_qembs if query_encoded else _text_scorer)
 
-    def scorer(factory, add_contributions=False, add_exact_match_contribution=False, verbose=False) -> TransformerBase:
+    def scorer(factory, add_contributions=False, add_exact_match_contribution=False, verbose=False, gpu=True) -> TransformerBase:
         """
         Calculates the ColBERT max_sim operator using previous encodings of queries and documents
         input: qid, query_embs, [query_weights], docno, doc_embs
@@ -389,7 +413,7 @@ class ColBERTModelOnlyFactory():
         import torch
         import pyterrier as pt
         assert pt.started(), 'PyTerrier must be started'
-        cuda0 = torch.device('cuda:0')
+        cuda0 = torch.device('cuda') if gpu else torch.device('cpu')
 
         def _build_interaction(row, D):
             doc_embs = row.doc_embs
@@ -404,11 +428,14 @@ class ColBERTModelOnlyFactory():
         def _score_query(df):
             with torch.no_grad():
                 weightsQ = None
-                Q = torch.cat([df.iloc[0].query_embs]).cuda()
+                Q = torch.cat([df.iloc[0].query_embs])
                 if "query_weights" in df.columns:
-                    weightsQ = df.iloc[0].query_weights.cuda()
+                    weightsQ = df.iloc[0].query_weights
                 else:
-                    weightsQ = torch.ones(Q.shape[0]).cuda()        
+                    weightsQ = torch.ones(Q.shape[0])
+                if gpu:
+                    Q = Q.cuda()
+                    weightsQ = weightsQ.cuda()        
                 D = torch.zeros(len(df), factory.args.doc_maxlen, factory.args.dim, device=cuda0)
                 df['row_index'] = range(len(df))
                 if verbose:
@@ -419,7 +446,6 @@ class ColBERTModelOnlyFactory():
                 maxscoreQ = (Q @ D.permute(0, 2, 1)).max(2).values
                 scores = (weightsQ*maxscoreQ).sum(1).cpu()
                 df["score"] = scores.tolist()
-                df = factory._add_docnos(df)
                 if add_contributions:
                     contributions = (Q @ D.permute(0, 2, 1)).max(1).values.cpu()
                     df["contributions"] = contributions.tolist()
