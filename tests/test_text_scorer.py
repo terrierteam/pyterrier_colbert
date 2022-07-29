@@ -28,15 +28,16 @@ class TestTextScoring(unittest.TestCase):
 
     def test_text_scorer_cmp(self):
         scorer1 = self.factory.text_scorer()
-        rtr1 = scorer1.transform(self.df)
+        rtr1 = scorer1.transform(self.df).sort_values('docno')
         self.assertTrue("score" in rtr1.columns)
 
         scorer2 = self.factory.query_encoder() >> self.factory.text_encoder() >> self.factory.scorer(gpu=False)
-        rtr2 = scorer2.transform(self.df)
+        rtr2 = scorer2.transform(self.df).sort_values('docno')
         self.assertTrue("score" in rtr2.columns)
 
-        self.assertAlmostEqual(rtr1.iloc[0].score, rtr2.iloc[0].score)
-        self.assertAlmostEqual(rtr1.iloc[1].score, rtr2.iloc[1].score)
+        self.assertEqual(rtr1.iloc[0].docno, rtr2.iloc[0].docno)
+        self.assertAlmostEqual(rtr1.iloc[0].score, rtr2.iloc[0].score, 5)
+        self.assertAlmostEqual(rtr1.iloc[1].score, rtr2.iloc[1].score, 5)
 
     def test_query_encoder(self):
         queries = pt.new.queries(["chemical reactions"])
