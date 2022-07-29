@@ -16,6 +16,28 @@ class TestTextScoring(unittest.TestCase):
         self.df["text"] = [ "professor proton mixed the chemicals", "chemical brothers played that tune"]
         self.df["query"] = ["chemical reactions", "chemical reactions"]
 
+    def test_prf_text(self):
+        from pyterrier_colbert.ranking import ColbertPRF
+
+        basescorer = self.factory.text_scorer()
+        basertr = basescorer.transform(self.df).sort_values('docno')
+
+        # monkey patch in an FNT from another index 
+        from pyterrier_colbert.ranking import ColBERTFactory
+        basefactory = ColBERTFactory.from_dataset('vaswani', 'colbert_uog44k', gpu=False)
+        self.factory.nn_term = basefactory.nn_term
+        pipe = (
+            self.factory.query_encoder() 
+            >> self.factory.text_encoder() 
+            >> ColbertPRF(self.factory, 2, 2, return_docs=True, fb_docs=2)
+            >> self.factory.scorer()
+        )
+        
+        prfrtr = pipe.transform(self.df).sort_values('docno')
+        self.assertGreater(prfrtr.iloc[0].score, basescorer.iloc[0].score)
+        self.assertGreater(prfrtr.iloc[1].score, basescorer.iloc[1].score)
+        
+
     def test_text_encoder(self):
         enc = self.factory.text_encoder()
         rtr1 = enc.transform(self.df)
