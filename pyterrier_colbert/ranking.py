@@ -1115,8 +1115,8 @@ class ColbertPRF(TransformerBase):
         for qid, res in topics_and_docs.groupby("qid"):
             new_query_df = self.transform_query(res)     
             if self.return_docs:
-                rtr_cols = ["qid", "docno", "docid"]
-                for col in ["doc_embs", "doc_toks"]:
+                rtr_cols = ["qid"]
+                for col in ["doc_embs", "doc_toks", "docid", "docno"]:
                     if col in res.columns:
                         rtr_cols.append(col)
                 new_query_df = res[rtr_cols].merge(new_query_df, on=["qid"])
