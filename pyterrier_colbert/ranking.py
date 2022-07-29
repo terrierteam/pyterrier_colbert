@@ -1045,7 +1045,7 @@ class ColbertPRF(TransformerBase):
     def transform_query(self, topic_and_res : pd.DataFrame) -> pd.DataFrame:
         topic_and_res = topic_and_res.sort_values('rank')
         if 'doc_embs' in topic_and_res.columns:
-            prf_embs = torch.cat(topic_and_res.head(self.fb_docs).doc_embs.values)
+            prf_embs = torch.cat(topic_and_res.head(self.fb_docs).doc_embs.tolist())
         else:
             prf_embs = torch.cat([self.pytcfactory.rrm.get_embedding(docid) for docid in topic_and_res.head(self.fb_docs).docid.values])
         
