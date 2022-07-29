@@ -34,8 +34,8 @@ class TestTextScoring(unittest.TestCase):
         )
         
         prfrtr = pipe.transform(self.df).sort_values('docno')
-        self.assertGreater(prfrtr.iloc[0].score, basescorer.iloc[0].score)
-        self.assertGreater(prfrtr.iloc[1].score, basescorer.iloc[1].score)
+        self.assertGreater(prfrtr.iloc[0].score, basertr.iloc[0].score)
+        self.assertGreater(prfrtr.iloc[1].score, basertr.iloc[1].score)
         
 
     def test_text_encoder(self):
