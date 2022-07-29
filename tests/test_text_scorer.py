@@ -30,7 +30,7 @@ class TestTextScoring(unittest.TestCase):
             self.factory.query_encoder() 
             >> self.factory.text_encoder() 
             >> ColbertPRF(self.factory, 5, 2, return_docs=True, fb_docs=2)
-            >> self.factory.scorer()
+            >> self.factory.scorer(gpu=False)
         )
         
         prfrtr = pipe.transform(self.df).sort_values('docno')
