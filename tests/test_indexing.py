@@ -5,7 +5,7 @@ import tempfile
 CHECKPOINT="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
 class TestIndexing(unittest.TestCase):
 
-    def _indexing_1doc(self, indexmgr):
+    def _indexing_1doc(self, indexmgr, indexread):
         #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
         import pyterrier as pt
         from pyterrier_colbert.indexing import ColBERTIndexer
@@ -14,7 +14,7 @@ class TestIndexing(unittest.TestCase):
             CHECKPOINT, 
             os.path.dirname(self.test_dir),os.path.basename(self.test_dir), 
             chunksize=3,
-            #indexmgr=indexmgr,
+            indexmgr=indexmgr,
             gpu=False)
 
         iter = pt.get_dataset("vaswani").get_corpus_iter()
@@ -24,6 +24,7 @@ class TestIndexing(unittest.TestCase):
         from pyterrier_colbert.ranking import ColbertPRF
             
         for factory in [indexer.ranking_factory()]:
+            factory.memtype = indexread
 
             self.assertEqual(200, len(factory))
 
@@ -78,12 +79,6 @@ class TestIndexing(unittest.TestCase):
                     else:
                         self.assertFalse("score" in dfOut.columns)
 
-    # def test_indexing_1doc_numpy(self):
-    #     self._indexing_1doc('numpy')
-    
-    # def test_indexing_1doc_half(self):
-    #     self._indexing_1doc('half')
-
     def indexing_empty(self):
         #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
         import pyterrier as pt
@@ -128,8 +123,17 @@ class TestIndexing(unittest.TestCase):
         factory = ColBERTFactory(CHECKPOINT, index_root, "index_part", faiss_partitions=100, gpu=False)
         self.assertEqual(400, len(factory.docid2docno))
     
-    def test_indexing_1doc_torch(self):
-        self._indexing_1doc('torch')
+    def test_indexing_1doc_torch_mem(self):
+        self._indexing_1doc('torch', "mem")
+
+    # def test_indexing_1doc_torch_mem(self):
+    #     self._indexing_1doc('half', "mmap")
+
+    def test_indexing_1doc_numpy_mem(self):
+        self._indexing_1doc('numpy', 'numpy')
+    
+    def test_indexing_1doc_numpy_mmap(self):
+        self._indexing_1doc('numpy', 'numpy_mmap')
 
     def setUp(self):
         import pyterrier as pt

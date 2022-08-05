@@ -43,8 +43,77 @@ from warnings import warn
 
 DEBUG=False
 
+def get_parts_ext(directory):
+    #extension of get_parts to check for other file types
+    extensions = ['.pt', '.npy', '.store']
+
+    parts=[]
+    for ext in extensions:
+        print([filename for filename in os.listdir(directory)])
+        print([filename for filename in os.listdir(directory) if filename.endswith(ext)])
+        parts = sorted([int(filename[: -1 * len(ext)]) for filename in os.listdir(directory)
+                        if filename.endswith(ext)])
+        if len(parts) > 0:
+            extension = ext
+            print("Found %d index files with ext %s" % (len(parts), extension))
+            break
+    if len(parts) == 0:
+        raise ValueError("found no index embedding files")
+
+    assert list(range(len(parts))) == parts, parts
+
+    # Integer-sortedness matters.
+    parts_paths = [os.path.join(directory, '{}{}'.format(filename, extension)) for filename in parts]
+    samples_paths = [os.path.join(directory, '{}.sample'.format(filename)) for filename in parts]
+    return parts, parts_paths, samples_paths
+
+def load_index_part_torch(filename, verbose=True):
+    mmap_storage = torch.HalfStorage.from_file(file_path, False, sum(self.doclens) * self.dim)
+    return torch.HalfTensor(mmap_storage).view(sum(self.doclens), self.dim)
+
+def load_index_part_torchhalf(filename, verbose=True):
+    return torch.load(filename)
+
+def load_index_part_numpy(filename):
+    if filename.endswith(".pt"):
+        filename = filename.replace(".pt", ".npy")
+        return torch.from_numpy(np.load(filename))
+    else:
+        #resort to torch for sample, etc
+        return torch.load(filename)
+
+class TorchStorageIndexManager(IndexManager):
+    """
+    A ColBERT IndexManager for torch.HalfStorage, which support mmap
+    """
+
+    def save(self, tensor, output_file):
+        if not output_file.endswith(".pt"):
+            # for .ids, .sample etc, resort to torch.save
+            return super().save(tensor, output_file)
+        output_file = output_file.replace(".pt", ".store")
+        size = tensor.shape[0] * tensor.shape[1]
+        out_tensor = torch.HalfStorage.from_file(output_file, True, size)
+        torch.HalfTensor(out_tensor).copy_(tensor.view(-1))
+
+class NumpyIndexManager(IndexManager):
+    """
+    A ColBERT IndexManager for numpy files, which support both mmap and direct loading
+    """
+    def save(self, tensor, output_file):
+        if not output_file.endswith(".pt"):
+            # for .ids, .sample etc, resort to torch.save
+            return super().save(tensor, output_file)
+        import numpy as np
+        output_file = output_file.replace(".pt", ".npy")
+        np.save(output_file, tensor.detach().numpy())
+        #memmap = np.memmap(output_file, dtype=np.float16, mode='w+', shape=tensor.shape)
+        #memmap[ : ] = tensor[ : ]
+        #memmap.flush()
+        #del(memmap)
+
 class CollectionEncoder():
-    def __init__(self, args, process_idx, num_processes):
+    def __init__(self, args, process_idx, num_processes, indexmgr=None):
         self.args = args
         self.collection = args.collection
         self.process_idx = process_idx
@@ -70,7 +139,19 @@ class CollectionEncoder():
         self.print_main(f"#> self.possible_subset_sizes = {self.possible_subset_sizes}")
 
         self._load_model()
-        self.indexmgr = IndexManager(args.dim)
+    
+        import colbert.indexing.index_manager, colbert.indexing.loaders, colbert.indexing.faiss
+        if indexmgr == 'numpy':
+            self.indexmgr = NumpyIndexManager(args.dim)
+            colbert.indexing.faiss.load_index_part = load_index_part_numpy
+            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext
+        elif indexmgr == 'half':
+            assert False
+            self.indexmgr = TorchStorageIndexManager(args.dim)
+        else:
+            colbert.indexing.faiss.get_parts = colbert.indexing.loaders.get_parts = get_parts_ext
+            colbert.indexing.faiss.load_index_part = colbert.indexing.index_manager.load_index_part
+            self.indexmgr = IndexManager(args.dim)
 
     def _initialize_iterator(self):
         return open(self.collection)
@@ -229,8 +310,8 @@ class Object(object):
 
 class CollectionEncoder_Generator(CollectionEncoder):
 
-    def __init__(self, *args, prepend_title=False):
-        super().__init__(*args)
+    def __init__(self, *args, prepend_title=False, **kwargs):
+        super().__init__(*args, **kwargs)
         self.prepend_title = prepend_title
 
     def _initialize_iterator(self):
@@ -259,7 +340,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
 
 class ColBERTIndexer(IterDictIndexerBase):
-    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True, indexmgr='None'):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
@@ -287,6 +368,7 @@ class ColBERTIndexer(IterDictIndexerBase):
         self.prepend_title = prepend_title
         self.num_docs = num_docs
         self.gpu = gpu
+        self.indexmgr = indexmgr
         if not gpu:
             warn("Gpu disabled, YMMV")
             import colbert.parameters
@@ -325,7 +407,7 @@ class ColBERTIndexer(IterDictIndexerBase):
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        ceg = CollectionEncoderIds(self.args,0,1) if self.ids else CollectionEncoder_Generator(self.args,0,1)
+        ceg = CollectionEncoderIds(self.args,0,1, indexmgr=self.indexmgr) if self.ids else CollectionEncoder_Generator(self.args,0,1, indexmgr=self.indexmgr)
 
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
@@ -455,7 +537,7 @@ def merge_indices(index_root, index_name, num, faiss=True):
         """Re-count and sym-link ColBERT index files in src_dirs folders into
         a unified ColBERT index in dst_dir folder"""
         
-        FILE_PATTERNS = ["%d.pt", "%d.sample", "%d.tokenids", "doclens.%d.json"]
+        FILE_PATTERNS = ["%d.pt", "%d.store", "%d.np", "%d.sample", "%d.tokenids", "doclens.%d.json"]
         
         src_sizes = [count_parts(d) for d in src_dirs]
         
@@ -463,9 +545,10 @@ def merge_indices(index_root, index_name, num, faiss=True):
         for src_size, src_dir in zip(src_sizes, src_dirs):
             for i in range(src_size):
                 for file in FILE_PATTERNS:
-                    src_file = os.path.join(src_dir, file % i)
-                    dst_file = os.path.join(dst_dir, file % (offset + i))
-                    os.symlink(src_file, dst_file)
+                    if os.path.exists(src_file):
+                        src_file = os.path.join(src_dir, file % i)
+                        dst_file = os.path.join(dst_dir, file % (offset + i))
+                        os.symlink(src_file, dst_file)
             offset += src_size
 
     def make_new_faiss(index_root, index_name, **kwargs):

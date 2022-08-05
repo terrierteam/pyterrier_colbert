@@ -56,6 +56,37 @@ class file_part_mem:
         endpos = self.endpos[pid]
         return self.mmap[startpos:endpos,:]
 
+class numpy_file_part_mmap:
+    def __init__(self, file_path, file_doclens):
+        self.dim = 128 # TODO        
+        file_path = file_path.replace(".pt", ".np")
+        self.doclens = file_doclens
+        self.endpos = np.cumsum(self.doclens)
+        self.startpos = self.endpos - self.doclens
+        import numpy as np
+        self.mmap = torch.from_numpy(np.load(file_path, mmap_mode='r+'))
+        print(self.mmap.shape)
+ 
+    def get_embedding(self, pid):
+        startpos = self.startpos[pid]
+        endpos = self.endpos[pid]
+        return self.mmap[startpos:endpos,:]
+
+class numpy_file_part_mem:
+    def __init__(self, file_path, file_doclens):
+        self.dim = 128 # TODO        
+        file_path = file_path.replace(".pt", ".npy")
+        self.doclens = file_doclens
+        self.endpos = np.cumsum(self.doclens)
+        self.startpos = self.endpos - self.doclens
+        import numpy as np
+        self.mmap = torch.from_numpy(np.load(file_path))
+        print(self.mmap.shape)
+ 
+    def get_embedding(self, pid):
+        startpos = self.startpos[pid]
+        endpos = self.endpos[pid]
+        return self.mmap[startpos:endpos,:]
 
 class Object(object):
     pass
@@ -105,6 +136,10 @@ class re_ranker_mmap:
             mmaps = [file_part_mmap(path, doclens) for path, doclens in zip(all_parts_paths, part_doclens)]
         elif memtype == "mem":
             mmaps = [file_part_mem(path, doclens) for path, doclens in tqdm(zip(all_parts_paths, part_doclens), total=len(all_parts_paths), desc="Loading index shards to memory", unit="shard")]
+        elif memtype == "numpy":
+            mmaps = [numpy_file_part_mem(path, doclens) for path, doclens in tqdm(zip(all_parts_paths, part_doclens), total=len(all_parts_paths), desc="Loading index shards to memory", unit="shard")]
+        elif memtype == "numpy_mmap":
+            mmaps = [numpy_file_part_mmap(path, doclens) for path, doclens in tqdm(zip(all_parts_paths, part_doclens), total=len(all_parts_paths), desc="Loading index shards to memory", unit="shard")]
         else:
             assert False, "Unknown memtype %s" % memtype
         return mmaps
