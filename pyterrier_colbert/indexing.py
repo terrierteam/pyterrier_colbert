@@ -30,7 +30,6 @@ import threading
 import queue
 
 from colbert.modeling.inference import ModelInference
-from colbert.evaluation.loaders import load_colbert
 from . import load_colbert, DEFAULT_MODEL, DEFAULT_CLASS
 from colbert.utils.utils import print_message
 import pickle
