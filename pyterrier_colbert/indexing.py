@@ -79,6 +79,7 @@ class CollectionEncoder():
 
     def _load_model(self):
         self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0), baseclass=self.baseclass, basemodel=self.basemodel)
+        import colbert.parameters
         if not colbert.parameters.DEVICE == torch.device("cpu"):
             self.colbert = self.colbert.cuda()
         self.colbert.eval()
