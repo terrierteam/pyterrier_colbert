@@ -9,12 +9,7 @@ from pyterrier import tqdm
 from pyterrier.transformer import TransformerBase
 from pyterrier.datasets import Dataset
 from typing import Union, Tuple
-from colbert.evaluation.load_model import load_model
-from . import load_checkpoint
-# monkeypatch to use our downloading version
-import colbert.evaluation.loaders
-colbert.evaluation.loaders.load_checkpoint = load_checkpoint
-colbert.evaluation.loaders.load_model.__globals__['load_checkpoint'] = load_checkpoint
+from . import load_model, DEFAULT_CLASS, DEFAULT_MODEL
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.slow import slow_rerank
 from colbert.indexing.loaders import get_parts, load_doclens
@@ -215,7 +210,10 @@ class re_ranker_mmap:
 class ColBERTModelOnlyFactory():
 
     def __init__(self, 
-            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], gpu=True):
+            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], 
+            gpu=True,
+            baseclass = DEFAULT_CLASS,
+            basemodel = DEFAULT_MODEL):
         args = Object()
         args.query_maxlen = 32
         args.doc_maxlen = 180
@@ -239,7 +237,7 @@ class ColBERTModelOnlyFactory():
             self.gpu = False
         if isinstance (colbert_model, str):
             args.checkpoint = colbert_model
-            args.colbert, args.checkpoint = load_model(args)
+            args.colbert, args.checkpoint = load_model(args, baseclass=baseclass, basemodel=basemodel)
         else:
             assert isinstance(colbert_model, tuple)
             args.colbert, args.checkpoint = colbert_model
@@ -500,9 +498,10 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             faiss_partitions=None,#TODO 100-
             memtype = "mem",
             faisstype= "mem",
-            gpu=True):
+            gpu=True,
+            **kwargs):
         
-        super().__init__(colbert_model, gpu=gpu)
+        super().__init__(colbert_model, gpu=gpu, **kwargs)
        
         self.verbose = False
         self._faissnn = None
