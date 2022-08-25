@@ -227,8 +227,8 @@ class Object(object):
 
 class CollectionEncoder_Generator(CollectionEncoder):
 
-    def __init__(self, *args, prepend_title=False):
-        super().__init__(*args)
+    def __init__(self, *args, prepend_title=False, **kwargs):
+        super().__init__(*args, **kwargs)
         self.prepend_title = prepend_title
 
     def _initialize_iterator(self):
