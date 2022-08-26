@@ -30,12 +30,7 @@ import threading
 import queue
 
 from colbert.modeling.inference import ModelInference
-from colbert.evaluation.loaders import load_colbert
-from . import load_checkpoint
-# monkeypatch to use our downloading version
-import colbert.evaluation.loaders
-colbert.evaluation.loaders.load_checkpoint = load_checkpoint
-colbert.evaluation.loaders.load_model.__globals__['load_checkpoint'] = load_checkpoint
+from . import load_colbert, DEFAULT_MODEL, DEFAULT_CLASS
 from colbert.utils.utils import print_message
 import pickle
 from colbert.indexing.index_manager import IndexManager
@@ -44,11 +39,13 @@ from warnings import warn
 DEBUG=False
 
 class CollectionEncoder():
-    def __init__(self, args, process_idx, num_processes):
+    def __init__(self, args, process_idx, num_processes, baseclass=DEFAULT_CLASS, basemodel=DEFAULT_MODEL):
         self.args = args
         self.collection = args.collection
         self.process_idx = process_idx
         self.num_processes = num_processes
+        self.baseclass = baseclass
+        self.basemodel = basemodel
         self.iterator = self._initialize_iterator()
 
         # Chunksize represents the maximum size of a single .pt file
@@ -80,7 +77,8 @@ class CollectionEncoder():
             self._save_batch(*args)
 
     def _load_model(self):
-        self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0))
+        self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0), baseclass=self.baseclass, basemodel=self.basemodel)
+        import colbert.parameters
         if not colbert.parameters.DEVICE == torch.device("cpu"):
             self.colbert = self.colbert.cuda()
         self.colbert.eval()
@@ -229,8 +227,8 @@ class Object(object):
 
 class CollectionEncoder_Generator(CollectionEncoder):
 
-    def __init__(self, *args, prepend_title=False):
-        super().__init__(*args)
+    def __init__(self, *args, prepend_title=False, **kwargs):
+        super().__init__(*args, **kwargs)
         self.prepend_title = prepend_title
 
     def _initialize_iterator(self):
@@ -259,7 +257,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
 
 class ColBERTIndexer(IterDictIndexerBase):
-    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True, baseclass=DEFAULT_CLASS, basemodel=DEFAULT_MODEL):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
@@ -287,12 +285,13 @@ class ColBERTIndexer(IterDictIndexerBase):
         self.prepend_title = prepend_title
         self.num_docs = num_docs
         self.gpu = gpu
+        self.baseclass = baseclass
+        self.basemodel = basemodel
         if not gpu:
             warn("Gpu disabled, YMMV")
             import colbert.parameters
-            import colbert.evaluation.load_model
             import colbert.modeling.colbert
-            colbert.parameters.DEVICE = colbert.evaluation.load_model.DEVICE = colbert.modeling.colbert.DEVICE = torch.device("cpu")
+            colbert.parameters.DEVICE = colbert.modeling.colbert.DEVICE = torch.device("cpu")
 
         assert self.args.slices >= 1
         assert self.args.sample is None or (0.0 < self.args.sample <1.0), self.args.sample
@@ -325,7 +324,7 @@ class ColBERTIndexer(IterDictIndexerBase):
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        ceg = CollectionEncoderIds(self.args,0,1) if self.ids else CollectionEncoder_Generator(self.args,0,1)
+        ceg = CollectionEncoderIds(self.args,0,1, baseclass=self.baseclass, basemodel=self.basemodel) if self.ids else CollectionEncoder_Generator(self.args,0,1, baseclass=self.baseclass, basemodel=self.basemodel)
 
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
