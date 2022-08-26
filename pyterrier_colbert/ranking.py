@@ -230,6 +230,7 @@ class ColBERTModelOnlyFactory():
         if not gpu:
             
             warn("Gpu disabled, YMMV")
+            import torch
             import colbert.parameters
             import colbert.evaluation.load_model
             import colbert.modeling.colbert
