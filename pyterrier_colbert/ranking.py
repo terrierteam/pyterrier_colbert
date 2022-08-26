@@ -241,8 +241,8 @@ class ColBERTModelOnlyFactory():
         else:
             assert isinstance(colbert_model, tuple)
             args.colbert, args.checkpoint = colbert_model
-            from colbert.modeling.colbert import ColBERT
-            assert isinstance(args.colbert, ColBERT)
+            import torch.nn
+            assert isinstance(args.colbert, torch.nn.Module)
             assert isinstance(args.checkpoint, dict)
             
         args.inference = ModelInference(args.colbert, amp=args.amp)
