@@ -215,7 +215,7 @@ class re_ranker_mmap:
 class ColBERTModelOnlyFactory():
 
     def __init__(self, 
-            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], gpu=True):
+            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], gpu=True, mask_punctuation=False):
         args = Object()
         args.query_maxlen = 32
         args.doc_maxlen = 180
@@ -226,7 +226,7 @@ class ColBERTModelOnlyFactory():
         args.amp = True
         args.nprobe = 10
         args.part_range = None
-        args.mask_punctuation = False
+        args.mask_punctuation = mask_punctuation
 
         self.gpu = True
         if not gpu:
@@ -500,9 +500,10 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             faiss_partitions=None,#TODO 100-
             memtype = "mem",
             faisstype= "mem",
-            gpu=True):
+            gpu=True,
+            mask_punctuation=False):
         
-        super().__init__(colbert_model, gpu=gpu)
+        super().__init__(colbert_model, gpu=gpu, mask_punctuation=mask_punctuation)
        
         self.verbose = False
         self._faissnn = None
@@ -608,7 +609,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             self.index_root,
             self.index_name,
             faiss_index = self._faiss_index(), 
-            cf=cf, df=df)
+            cf=cf, df=df, mask_punctuation=self.args.mask_punctuation)
         return self._faissnn
 
     def _faiss_index(self):
