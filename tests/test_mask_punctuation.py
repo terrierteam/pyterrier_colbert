@@ -4,6 +4,56 @@ import tempfile
 CHECKPOINT="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
 class TestMaskPunctuation(unittest.TestCase):
 
+    def test_mask_punctuation_tokenisation(self):
+        import pyterrier as pt
+        from pyterrier_colbert.ranking import ColBERTModelOnlyFactory
+        mof = ColBERTModelOnlyFactory(CHECKPOINT, gpu=False, mask_punctuation=True)
+        inference = mof.args.inference
+        self.assertTrue(len(inference.colbert.skiplist) > 0)
+        embs, ids = inference.docFromText(["bottom. --Lynne @ Lynne Marie Studios, Inc."], bsize=8, with_ids=True, keep_dims=False)
+        # [(3953, 'bottom'),
+        # (1012, '.'), REMOVED
+        # (1011, '-'), REMOVED
+        # (1011, '-'), REMOVED
+        # (26938, 'lynne'),
+        # (1030, '@'), REMOVED
+        # (26938, 'lynne'),
+        # (5032, 'marie'),
+        # (4835, 'studios'),
+        # (1010, ','), REMOVED
+        # (4297, 'inc'),
+        # (1012, '.')] REMOVED
+        # 6 KEPT
+        expected_ids = [101, 2] + [3953, 26938, 26938, 5032, 4835, 4297] + [102]
+        self.assertEqual(len(ids[0].tolist()), len(expected_ids))
+        self.assertTrue(ids[0].tolist() == expected_ids)
+        self.assertEqual(embs[0].shape[0], len(expected_ids))
+    
+    def test_nomask_punctuation_tokenisation(self):
+        import pyterrier as pt
+        from pyterrier_colbert.ranking import ColBERTModelOnlyFactory
+        mof = ColBERTModelOnlyFactory(CHECKPOINT, gpu=False, mask_punctuation=False)
+        inference = mof.args.inference
+        self.assertTrue(len(inference.colbert.skiplist) == 0)
+        embs, ids = inference.docFromText(["bottom. --Lynne @ Lynne Marie Studios, Inc."], bsize=8, with_ids=True, keep_dims=False)
+        # [(3953, 'bottom'),
+        # (1012, '.'),
+        # (1011, '-'),
+        # (1011, '-'),
+        # (26938, 'lynne'),
+        # (1030, '@'),
+        # (26938, 'lynne'),
+        # (5032, 'marie'),
+        # (4835, 'studios'),
+        # (1010, ','),
+        # (4297, 'inc'),
+        # (1012, '.')]
+        expected_ids = [101, 2] + [3953, 1012, 1011, 1011, 26938, 1030, 26938, 5032, 4835, 1010, 4297, 1012] + [102]
+        self.assertEqual(len(ids[0].tolist()), len(expected_ids))
+        self.assertTrue(ids[0].tolist() == expected_ids)
+        self.assertEqual(embs[0].shape[0], len(expected_ids))
+
+
     def test_mask_punctuation_scoring(self):
         import pyterrier as pt
         from pyterrier_colbert.indexing import ColBERTIndexer
