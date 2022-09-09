@@ -30,7 +30,7 @@ class Object(object):
 
 class FaissNNTerm():
 
-    def __init__(self, colbert, index_root, index_name, nprobe=10, partitions=None, part_range=None, query_maxlen=32, faiss_index=None, cf=True, df=False):
+    def __init__(self, colbert, index_root, index_name, nprobe=10, partitions=None, part_range=None, query_maxlen=32, faiss_index=None, cf=True, df=False, mask_punctuation=False):
         if type(colbert) == str:
             args = Object()
             args.checkpoint = colbert
@@ -38,7 +38,7 @@ class FaissNNTerm():
             args.similarity = 'cosine'
             args.query_maxlen = 32
             args.doc_maxlen = 180
-            args.mask_punctuation = False
+            args.mask_punctuation = mask_punctuation
             self.colbert, args.checkpoint = load_colbert(args)
         else:
             self.colbert = colbert
