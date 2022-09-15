@@ -80,7 +80,13 @@ class CollectionEncoder():
             self._save_batch(*args)
 
     def _load_model(self):
-        self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0))
+        if isinstance(self.args.checkpoint, torch.nn.Module):
+            self.colbert = self.args.checkpoint
+            self.checkpoint = None # this isnt used anyway
+        else:
+            assert isinstance(self.args.checkpoint, str)
+            self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0))
+        
         if not colbert.parameters.DEVICE == torch.device("cpu"):
             self.colbert = self.colbert.cuda()
         self.colbert.eval()
