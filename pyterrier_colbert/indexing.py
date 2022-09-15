@@ -82,7 +82,7 @@ class CollectionEncoder():
     def _load_model(self):
         if isinstance(self.args.checkpoint, torch.nn.Module):
             self.colbert = self.args.checkpoint
-            self.checkpoint = None # this isnt used anyway
+            self.checkpoint = {} # this isnt used anyway, but the retriever code checks it is a dictionary
         else:
             assert isinstance(self.args.checkpoint, str)
             self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0))
