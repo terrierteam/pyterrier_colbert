@@ -56,7 +56,7 @@ jobs:
         if [ "${{matrix.transformers}}" == "<4" ]; then pip install torch==1.8.0 setuptools==59.5.0; fi
         #install this software
         pip install --timeout=120 .
-        pip install 'transformers${{matrix.transformers}}'
+        pip install 'transformers==${{matrix.transformers}}'
         pip install --upgrade --upgrade-strategy eager pytest
         conda list
 
