@@ -5,13 +5,13 @@ import tempfile
 CHECKPOINT="http://www.dcs.gla.ac.uk/~craigm/colbert.dnn.zip"
 class TestIndexing(unittest.TestCase):
 
-    def _indexing_1doc(self, indexmgr):
+    def _indexing_1doc(self, indexmgr, model):
         #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
         import pyterrier as pt
         from pyterrier_colbert.indexing import ColBERTIndexer
         import os
         indexer = ColBERTIndexer(
-            CHECKPOINT, 
+            model, 
             os.path.dirname(self.test_dir),os.path.basename(self.test_dir), 
             chunksize=3,
             #indexmgr=indexmgr,
@@ -129,7 +129,12 @@ class TestIndexing(unittest.TestCase):
         self.assertEqual(400, len(factory.docid2docno))
     
     def test_indexing_1doc_torch(self):
-        self._indexing_1doc('torch')
+        self._indexing_1doc('torch', CHECKPOINT)
+
+    def test_indexing_1doc_torch_minilm(self):
+        from colbert.modeling.colbert import ColBERT
+        model = ColBERT.from_pretrained("vespa-engine/col-minilm", query_maxlen=32, doc_maxlen=180, mask_punctuation=False, dim=32)
+        self._indexing_1doc('torch', model)
 
     def setUp(self):
         import pyterrier as pt
