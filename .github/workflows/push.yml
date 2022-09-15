@@ -52,6 +52,8 @@ jobs:
         conda install -c pytorch faiss-cpu=1.6.3
         pip install --upgrade --upgrade-strategy eager git+https://github.com/terrier-org/pyterrier.git#egg=python-terrier
         pip install --upgrade --upgrade-strategy eager -r requirements.txt
+        # transformers 3 cant use torch 1.12
+        if ["<4" == "<4]; then pip install torch==1.10.0; fi
         #install this software
         pip install --timeout=120 .
         pip install 'transformers${{matrix.transformers}}'
