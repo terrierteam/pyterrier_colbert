@@ -132,6 +132,9 @@ class TestIndexing(unittest.TestCase):
         self._indexing_1doc('torch', CHECKPOINT)
 
     def test_indexing_1doc_torch_minilm(self):
+        import transformers
+        if int(transformers.__version__[0]) < 4:
+            self.skipTest("transfomers too old")
         from colbert.modeling.colbert import ColBERT
         model = ColBERT.from_pretrained("vespa-engine/col-minilm", query_maxlen=32, doc_maxlen=180, mask_punctuation=False, dim=32)
         self._indexing_1doc('torch', model)
