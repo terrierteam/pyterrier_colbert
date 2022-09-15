@@ -53,7 +53,7 @@ jobs:
         pip install --upgrade --upgrade-strategy eager git+https://github.com/terrier-org/pyterrier.git#egg=python-terrier
         pip install --upgrade --upgrade-strategy eager -r requirements.txt
         # transformers 3 cant use torch 1.12
-        if [ "${{matrix.transformers}}" == "<4" ]; then pip install torch==1.10.0; fi
+        if [ "${{matrix.transformers}}" == "<4" ]; then pip install torch==1.11.0; fi
         #install this software
         pip install --timeout=120 .
         pip install 'transformers${{matrix.transformers}}'
