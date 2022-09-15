@@ -310,7 +310,8 @@ class ColBERTIndexer(IterDictIndexerBase):
             self.args.index_name,
             self.args.partitions,
             memtype, gpu=self.gpu,
-            mask_punctuation=self.args.mask_punctuation
+            mask_punctuation=self.args.mask_punctuation,
+            dim=self.args.dim
         )
 
     def index(self, iterator):
