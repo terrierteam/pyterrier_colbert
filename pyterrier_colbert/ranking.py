@@ -524,7 +524,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                 self.docid_as_docno = True
         
         self.faiss_index_on_gpu = True
-        if not gpu:
+        if not self.gpu:
             self.faiss_index_on_gpu = False
 
         try:
