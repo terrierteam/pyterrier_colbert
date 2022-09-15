@@ -12,7 +12,7 @@ jobs:
         os: ['ubuntu-latest'] # 
         architecture: ['x64']
         terrier: ['snapshot'] #'5.3', '5.4-SNAPSHOT',
-        transformers: ['<4', ">=4"] 
+        transformers: ['3.0.2', ">=4"] 
 
     runs-on: ${{ matrix.os }}
     steps:
