@@ -499,10 +499,9 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             faiss_partitions=None,#TODO 100-
             memtype = "mem",
             faisstype= "mem",
-            gpu=True,
-            mask_punctuation=False):
+            **kwargs):
         
-        super().__init__(colbert_model, gpu=gpu, mask_punctuation=mask_punctuation)
+        super().__init__(colbert_model, **kwargs)
        
         self.verbose = False
         self._faissnn = None
