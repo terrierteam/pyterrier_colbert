@@ -99,7 +99,10 @@ class TestMaskPunctuation(unittest.TestCase):
         with_ids = dense_e2e.search(query)
         with_ids = with_ids[with_ids["docno"] == "a"].iloc[0]
 
-        assert with_ids["score"] == no_ids["score"]
+        print(no_ids)
+        print(with_ids)
+
+        self.assertEqual(with_ids["score"], no_ids["score"], 0.0001)
 
     def setUp(self):
         import pyterrier as pt
