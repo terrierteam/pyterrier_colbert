@@ -164,7 +164,7 @@ class CollectionEncoder():
 
             pid, passage, *other = line_parts
 
-            if len(passage) == 0:
+            if len(passage) == 0 or passage.isspace():
                 raise ValueError("There is an empty passage at %d. Aborting... " % line_idx )
 
             if len(other) >= 1:
@@ -254,7 +254,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
                 title = line["title"]
                 passage = title + ' | ' + passage
                 
-            if len(passage) == 0:
+            if len(passage) == 0 or passage.isspace():
                 raise ValueError("There is an empty passage at %d. Aborting... " % line_idx )
             
             batch.append(passage)
