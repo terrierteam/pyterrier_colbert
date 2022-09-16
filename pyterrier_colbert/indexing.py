@@ -80,7 +80,13 @@ class CollectionEncoder():
             self._save_batch(*args)
 
     def _load_model(self):
-        self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0))
+        if isinstance(self.args.checkpoint, torch.nn.Module):
+            self.colbert = self.args.checkpoint
+            self.checkpoint = {} # this isnt used anyway, but the retriever code checks it is a dictionary
+        else:
+            assert isinstance(self.args.checkpoint, str)
+            self.colbert, self.checkpoint = load_colbert(self.args, do_print=(self.process_idx == 0))
+        
         if not colbert.parameters.DEVICE == torch.device("cpu"):
             self.colbert = self.colbert.cuda()
         self.colbert.eval()
@@ -257,13 +263,13 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
 
 class ColBERTIndexer(IterDictIndexerBase):
-    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True, mask_punctuation=False):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
         args.query_maxlen = 32
         args.doc_maxlen = 180
-        args.mask_punctuation = False
+        args.mask_punctuation = mask_punctuation
         args.checkpoint = checkpoint
         args.bsize = 128
         args.collection = None
@@ -301,7 +307,9 @@ class ColBERTIndexer(IterDictIndexerBase):
             self.args.index_root,
             self.args.index_name,
             self.args.partitions,
-            memtype, gpu=self.gpu
+            memtype, gpu=self.gpu,
+            mask_punctuation=self.args.mask_punctuation,
+            dim=self.args.dim
         )
 
     def index(self, iterator):

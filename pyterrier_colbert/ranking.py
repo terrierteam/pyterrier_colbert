@@ -25,8 +25,8 @@ import pickle
 from warnings import warn
 
 class file_part_mmap:
-    def __init__(self, file_path, file_doclens):
-        self.dim = 128 # TODO
+    def __init__(self, file_path, file_doclens, dim):
+        self.dim = dim
         
         self.doclens = file_doclens
         self.endpos = np.cumsum(self.doclens)
@@ -41,9 +41,9 @@ class file_part_mmap:
         return self.mmap[startpos:endpos,:]
 
 class file_part_mem:
-    def __init__(self, file_path, file_doclens):
-        self.dim = 128 # TODO
-        
+    def __init__(self, file_path, file_doclens, dim):
+        self.dim = dim
+
         self.doclens = file_doclens
         self.endpos = np.cumsum(self.doclens)
         self.startpos = self.endpos - self.doclens
@@ -70,14 +70,14 @@ class re_ranker_mmap:
         self.doc_maxlen = args.doc_maxlen
         assert self.doc_maxlen > 0
         self.inference = inference
-        self.dim = 128 #TODO
+        self.dim = args.dim
         self.verbose = verbose
     
         # Every pt file gets its own list of doc lengths
         self.part_doclens = load_doclens(index_path, flatten=False)
         assert len(self.part_doclens) > 0, "Did not find any indices at %s" % index_path
         # Local mmapped tensors with local, single file accesses
-        self.part_mmap : List[file_part_mmap] = re_ranker_mmap._load_parts(index_path, self.part_doclens, memtype)
+        self.part_mmap : List[file_part_mmap] = re_ranker_mmap._load_parts(index_path, self.part_doclens, self.dim, memtype)
         
         # last pid (inclusive, e.g., the -1) in each pt file
         # the -1 is used in the np.searchsorted
@@ -96,15 +96,15 @@ class re_ranker_mmap:
         self.part_pid_begin_offsets
     
     @staticmethod
-    def _load_parts(index_path, part_doclens, memtype="mmap"):
+    def _load_parts(index_path, part_doclens, dim, memtype="mmap"):
         # Every pt file is loaded and managed independently, with local pids
         _, all_parts_paths, _ = get_parts(index_path)
         
         if memtype == "mmap":
             all_parts_paths = [ file.replace(".pt", ".store") for file in all_parts_paths ]
-            mmaps = [file_part_mmap(path, doclens) for path, doclens in zip(all_parts_paths, part_doclens)]
+            mmaps = [file_part_mmap(path, doclens, dim) for path, doclens in zip(all_parts_paths, part_doclens)]
         elif memtype == "mem":
-            mmaps = [file_part_mem(path, doclens) for path, doclens in tqdm(zip(all_parts_paths, part_doclens), total=len(all_parts_paths), desc="Loading index shards to memory", unit="shard")]
+            mmaps = [file_part_mem(path, doclens, dim) for path, doclens in tqdm(zip(all_parts_paths, part_doclens), total=len(all_parts_paths), desc="Loading index shards to memory", unit="shard")]
         else:
             assert False, "Unknown memtype %s" % memtype
         return mmaps
@@ -215,18 +215,17 @@ class re_ranker_mmap:
 class ColBERTModelOnlyFactory():
 
     def __init__(self, 
-            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], gpu=True):
+            colbert_model : Union[str, Tuple[colbert.modeling.colbert.ColBERT, dict]], gpu=True, mask_punctuation=False, dim=128):
         args = Object()
         args.query_maxlen = 32
         args.doc_maxlen = 180
-        args.dim = 128
+        args.dim = dim  
         args.bsize = 128
         args.similarity = 'cosine'        
-        args.dim = 128
         args.amp = True
         args.nprobe = 10
         args.part_range = None
-        args.mask_punctuation = False
+        args.mask_punctuation = mask_punctuation
 
         self.gpu = True
         if not gpu:
@@ -500,9 +499,9 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             faiss_partitions=None,#TODO 100-
             memtype = "mem",
             faisstype= "mem",
-            gpu=True):
+            **kwargs):
         
-        super().__init__(colbert_model, gpu=gpu)
+        super().__init__(colbert_model, **kwargs)
        
         self.verbose = False
         self._faissnn = None
@@ -525,7 +524,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
                 self.docid_as_docno = True
         
         self.faiss_index_on_gpu = True
-        if not gpu:
+        if not self.gpu:
             self.faiss_index_on_gpu = False
 
         try:
@@ -608,7 +607,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             self.index_root,
             self.index_name,
             faiss_index = self._faiss_index(), 
-            cf=cf, df=df)
+            cf=cf, df=df, mask_punctuation=self.args.mask_punctuation)
         return self._faissnn
 
     def _faiss_index(self):
