@@ -86,6 +86,36 @@ class TestIndexing(unittest.TestCase):
     # def test_indexing_1doc_half(self):
     #     self._indexing_1doc('half')
 
+    def indexing_docnos_correctly_empty(self):
+        #A test case to see whether empty passages are handled correctly. 
+        import pyterrier as pt
+        from pyterrier_colbert.indexing import ColBERTIndexer
+       
+        import os
+        indexer = ColBERTIndexer(
+            CHECKPOINT, 
+            os.path.dirname(self.test_dir),os.path.basename(self.test_dir), 
+            chunksize=3,
+            gpu=False)
+        corpus = [{ "docno" : "d%d" %i, "text": "mock documents mock documents mock documentsmock documentsmock documents mock documents mock documents mock documents mock documents mock documents mock documents mock documents mock documents "+str(i) } for i in range(150)]  + [{"docno": "empty", "text":""}] +  [{ "docno" : "d%d" %(i+150), "text": "mock document of clusters (100) " + str(i) } for i in range(150)]
+        with self.assertRaises(ValueError):
+            indexer.index(corpus)
+
+    def indexing_docnos_correctly_spaces(self):
+        #A test case to check whether passages only containing spaces are handled correctly. 
+        import pyterrier as pt
+        from pyterrier_colbert.indexing import ColBERTIndexer
+       
+        import os
+        indexer = ColBERTIndexer(
+            CHECKPOINT, 
+            os.path.dirname(self.test_dir),os.path.basename(self.test_dir), 
+            chunksize=3,
+            gpu=False)
+        corpus = [{ "docno" : "d%d" %i, "text": "mock documents mock documents mock documentsmock documentsmock documents mock documents mock documents mock documents mock documents mock documents mock documents mock documents mock documents "+str(i) } for i in range(150)]  + [{"docno": "empty", "text":"  "}] +  [{ "docno" : "d%d" %(i+150), "text": "mock document of clusters (100) " + str(i) } for i in range(150)]
+        with self.assertRaises(ValueError):
+            indexer.index(corpus)
+            
     def indexing_empty(self):
         #minimum test case size is 100 docs, 40 Wordpiece tokens, and nx > k. we found 200 worked
         import pyterrier as pt
