@@ -1,7 +1,6 @@
 import pandas as pd
 import pyterrier as pt
 assert pt.started(), "please run pt.init() before importing pyt_colbert"
-from pyterrier.transformer import TransformerBase
 from .ranking import ColBERTFactory
 
 def _filter_query(query_toks_df : pd.DataFrame) -> pd.DataFrame:
@@ -13,10 +12,10 @@ def _filter_query(query_toks_df : pd.DataFrame) -> pd.DataFrame:
     rtr = [ first_row.qid, first_row.query, first_row.query_embs[pos],  first_row.query_toks[pos] ]    
     return pd.DataFrame([rtr], columns=["qid", "query", "query_embs", "query_toks"]) 
 
-def _query_embedding_pruning_generic(function, cutoff : int, icf : bool = True, verbose : bool = False) -> TransformerBase:
+def _query_embedding_pruning_generic(function, cutoff : int, icf : bool = True, verbose : bool = False) -> pt.Transformer:
     return (pt.apply.by_query(function, verbose=verbose, add_ranks=True) % cutoff) >> pt.apply.by_query(_filter_query, add_ranks=False)
 
-def query_embedding_pruning(factory : ColBERTFactory, cutoff : int, icf : bool = True, verbose : bool = False) -> TransformerBase:
+def query_embedding_pruning(factory : ColBERTFactory, cutoff : int, icf : bool = True, verbose : bool = False) -> pt.Transformer:
     """
     Applies the ICF or IDF based query emebedding pruning proposed in the CIKM 2021 paper.
 
@@ -52,7 +51,7 @@ def query_embedding_pruning(factory : ColBERTFactory, cutoff : int, icf : bool =
         return pd.DataFrame(rtr, columns=['qid', 'query', 'query_embs', 'pos', 'query_toks', 'score'])
     return _query_embedding_pruning_generic(make_icf_idf, cutoff, verbose=verbose)
     
-def query_embedding_pruning_first(factory : ColBERTFactory, cutoff : int, icf : bool = True, verbose : bool = False) -> TransformerBase:
+def query_embedding_pruning_first(factory : ColBERTFactory, cutoff : int, icf : bool = True, verbose : bool = False) -> pt.Transformer:
     """
     Applies the "First" query emebedding pruning baseline from the CIKM 2021 paper. This suppresses query embeddings based on their position in the query
 
@@ -84,7 +83,7 @@ def query_embedding_pruning_first(factory : ColBERTFactory, cutoff : int, icf : 
         return pd.DataFrame(rtr, columns=['qid', 'query', 'query_embs', 'pos', 'query_toks', 'score'])
     return _query_embedding_pruning_generic(make_first, cutoff, verbose=verbose)
 
-def query_embedding_pruning_special(CLS=False, Q=False, MASK=False) -> TransformerBase:
+def query_embedding_pruning_special(CLS=False, Q=False, MASK=False) -> pt.Transformer:
     """
     Filters out special tokens in the ColBERT encoded query.
 

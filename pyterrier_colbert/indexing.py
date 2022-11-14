@@ -1,13 +1,9 @@
 import pyterrier as pt
-assert pt.started(), "please run pt.init() before importing pyt_colbert"
 import os
 from pyterrier_colbert.ranking import ColBERTFactory
 import numpy as np
-from pyterrier.transformer import TransformerBase
 from colbert.indexing.faiss import index_faiss
 from colbert.indexing.loaders import load_doclens
-from pyterrier.transformer import TransformerBase
-from pyterrier.transformer import IterDictIndexerBase
 import os
 import ujson
 import random
@@ -262,7 +258,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
         return batch
 
 
-class ColBERTIndexer(IterDictIndexerBase):
+class ColBERTIndexer(pt.Indexer):
     def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True, mask_punctuation=False):
         args = Object()
         args.similarity = 'cosine'
