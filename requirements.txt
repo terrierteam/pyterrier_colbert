@@ -2,3 +2,4 @@ python-terrier>=0.9.1
 pandas
 torch>=1.6.0
 git+https://github.com/cmacdonald/ColBERT.git@v0.2#egg=ColBERT
+scikit-learn
