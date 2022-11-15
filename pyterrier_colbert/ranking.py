@@ -6,7 +6,6 @@ import pyterrier as pt
 assert pt.started(), "please run pt.init() before importing pyt_colbert"
 
 from pyterrier import tqdm
-from pyterrier.transformer import TransformerBase
 from pyterrier.datasets import Dataset
 from typing import Union, Tuple
 from colbert.evaluation.load_model import load_model
@@ -249,7 +248,7 @@ class ColBERTModelOnlyFactory():
         args.inference = ModelInference(args.colbert, amp=args.amp)
         self.args = args
         
-    def query_encoder(self, detach=True) -> TransformerBase:
+    def query_encoder(self, detach=True) -> pt.Transformer:
         """
         Returns a transformer that can encode queries using ColBERT's model.
         input: qid, query
@@ -270,7 +269,7 @@ class ColBERTModelOnlyFactory():
         
         return pt.apply.generic(row_apply)
     
-    def text_encoder(self, detach=True, batch_size=8):
+    def text_encoder(self, detach=True, batch_size=8) -> pt.Transformer:
         """
         Returns a transformer that can encode the text using ColBERT's model.
         input: qid, text
@@ -344,7 +343,7 @@ class ColBERTModelOnlyFactory():
         #fig.subplots_adjust(hspace=-0.37)
         return fig
 
-    def text_scorer(self, query_encoded=False, doc_attr="text", verbose=False) -> TransformerBase:
+    def text_scorer(self, query_encoded=False, doc_attr="text", verbose=False) -> pt.Transformer:
         """
         Returns a transformer that uses ColBERT model to score the *text* of documents.
         """
@@ -403,7 +402,7 @@ class ColBERTModelOnlyFactory():
 
         return pt.apply.generic(_text_scorer_qembs if query_encoded else _text_scorer)
 
-    def scorer(factory, add_contributions=False, add_exact_match_contribution=False, verbose=False, gpu=True) -> TransformerBase:
+    def scorer(factory, add_contributions=False, add_exact_match_contribution=False, verbose=False, gpu=True) -> pt.Transformer:
         """
         Calculates the ColBERT max_sim operator using previous encodings of queries and documents
         input: qid, query_embs, [query_weights], docno, doc_embs
@@ -629,7 +628,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             self.faiss_index.faiss_index = faiss.index_cpu_to_all_gpus(self.faiss_index.faiss_index)
         return self.faiss_index
 
-    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, docnos=False) -> TransformerBase:
+    def set_retrieve(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, docnos=False) -> pt.Transformer:
         """
         Performs ANN retrieval, but the retrieval forms a set - i.e. there is no score attribute. Number of documents retrieved
         is indirectly controlled by the faiss_depth parameters (denoted as k' in the original ColBERT paper).
@@ -719,7 +718,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             df["docno"] = df["docid"].apply(lambda docid : self.docid2docno[docid])
         return df
 
-    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True, batch_size=10000) -> TransformerBase:
+    def index_scorer(self, query_encoded=False, add_ranks=False, add_docnos=True, batch_size=10000) -> pt.Transformer:
         """
         Returns a transformer that uses the ColBERT index to perform scoring of documents to queries 
         """
@@ -808,7 +807,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             all_tensors = torch.cat(all_tensors).squeeze()
         return all_tensors
 
-    def end_to_end(self) -> TransformerBase:
+    def end_to_end(self) -> pt.Transformer:
         """
         Returns a transformer composition that uses a ColBERT FAISS index to retrieve documents, followed by a ColBERT index 
         to perform accurate scoring of the retrieved documents. Equivalent to `colbertfactory.set_retrieve() >> colbertfactory.index_scorer()`.
@@ -817,7 +816,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         #output: qid, query, docno, score
         return self.set_retrieve() >> self.index_scorer(query_encoded=True)
 
-    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True, add_docnos=True, num_qembs_hint=32) -> TransformerBase:
+    def ann_retrieve_score(self, batch=False, query_encoded=False, faiss_depth=1000, verbose=False, maxsim=True, add_ranks=True, add_docnos=True, num_qembs_hint=32) -> pt.Transformer:
         """
         Like set_retrieve(), uses the ColBERT FAISS index to retrieve documents, but scores them using the maxsim on the approximate
         (quantised) nearest neighbour scores. 
@@ -915,7 +914,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         t.__getstate__ = types.MethodType(lambda t2 : None, t)
         return t
 
-    def fetch_index_encodings(factory, verbose=False, ids=False) -> TransformerBase:
+    def fetch_index_encodings(factory, verbose=False, ids=False) -> pt.Transformer:
         """
         New encoder that gets embeddings from rrm and stores into doc_embs column.
         If ids is True, then an additional doc_toks column is also added. This requires 
@@ -952,7 +951,7 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
             rtr = rtr >> pt.apply.by_query(_get_tok_ids, add_ranks=False)
         return rtr
 
-    def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> TransformerBase:
+    def prf(pytcolbert, rerank, fb_docs=3, fb_embs=10, beta=1.0, k=24) -> pt.Transformer:
         """
         Returns a pipeline for ColBERT PRF, either as a ranker, or a re-ranker. Final ranking is cutoff at 1000 docs.
     
@@ -1002,10 +1001,9 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         return self._explain(query, embsD, idsD)
     
 
-from pyterrier.transformer import TransformerBase
 import pandas as pd
 
-class ColbertPRF(TransformerBase):
+class ColbertPRF(pt.Transformer):
     def __init__(self, pytcfactory, k, fb_embs, beta=1, r = 42, return_docs = False, fb_docs=10,  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.k = k
