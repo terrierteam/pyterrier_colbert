@@ -91,7 +91,7 @@ class TestIndexing(unittest.TestCase):
         from pyterrier_colbert.indexing import ColBERTIndexer
         import os
         indexer = ColBERTIndexer(
-            model,
+            CHECKPOINT,
             os.path.dirname(self.test_dir), os.path.basename(self.test_dir),
             chunksize=3,
             # indexmgr=indexmgr,
