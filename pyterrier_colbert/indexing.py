@@ -293,7 +293,7 @@ class ColBERTIndexer(pt.Indexer):
         self.prepend_title = prepend_title
         self.num_docs = num_docs
         self.gpu = gpu
-        self.allow_empty_doc = skip_empty_docs
+        self.skip_empty_docs = skip_empty_docs
         if not gpu:
             warn("Gpu disabled, YMMV")
             import colbert.parameters
