@@ -230,10 +230,10 @@ class Object(object):
 
 class CollectionEncoder_Generator(CollectionEncoder):
 
-    def __init__(self, *args, prepend_title=False, allow_empty_doc=False):
+    def __init__(self, *args, prepend_title=False, skip_empty_docs=False):
         super().__init__(*args)
         self.prepend_title = prepend_title
-        self.allow_empty_doc = allow_empty_doc
+        self.skip_empty_docs = skip_empty_docs
 
     def _initialize_iterator(self):
       return self.args.generator
@@ -255,7 +255,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
                 passage = title + ' | ' + passage
                 
             if len(passage) == 0 or passage.isspace():
-                if self.allow_empty_doc:
+                if self.skip_empty_docs:
                     continue
                 raise ValueError("There is an empty passage at %d. Aborting... " % line_idx )
             
@@ -265,7 +265,7 @@ class CollectionEncoder_Generator(CollectionEncoder):
 
 
 class ColBERTIndexer(pt.Indexer):
-    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True, mask_punctuation=False, allow_empty_doc=False):
+    def __init__(self, checkpoint, index_root, index_name, chunksize, prepend_title=False, num_docs=None, ids=True, gpu=True, mask_punctuation=False, skip_empty_docs=False):
         args = Object()
         args.similarity = 'cosine'
         args.dim = 128
@@ -293,7 +293,7 @@ class ColBERTIndexer(pt.Indexer):
         self.prepend_title = prepend_title
         self.num_docs = num_docs
         self.gpu = gpu
-        self.allow_empty_doc = allow_empty_doc
+        self.allow_empty_doc = skip_empty_docs
         if not gpu:
             warn("Gpu disabled, YMMV")
             import colbert.parameters
@@ -334,7 +334,7 @@ class ColBERTIndexer(pt.Indexer):
                 docid+=1
                 yield l              
         self.args.generator = convert_gen(iterator)
-        ceg = CollectionEncoderIds(self.args,0,1) if self.ids else CollectionEncoder_Generator(self.args,0,1, allow_empty_doc=self.allow_empty_doc)
+        ceg = CollectionEncoderIds(self.args,0,1) if self.ids else CollectionEncoder_Generator(self.args, 0, 1, skip_empty_docs=self.skip_empty_docs)
 
         create_directory(self.args.index_root)
         create_directory(self.args.index_path)
