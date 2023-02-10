@@ -98,8 +98,6 @@ class TestIndexing(unittest.TestCase):
             gpu=False,
             skip_empty_docs=True)
 
-        if dim is not None:
-            indexer.args.dim = dim
         iter = pt.get_dataset("vaswani").get_corpus_iter()
         docs = [next(iter) for i in range(200)]
         docs.insert(100, {'docno': 'empty', 'text': ''})  # truly empty
