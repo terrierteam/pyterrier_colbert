@@ -101,7 +101,11 @@ class TestIndexing(unittest.TestCase):
         if dim is not None:
             indexer.args.dim = dim
         iter = pt.get_dataset("vaswani").get_corpus_iter()
-        indexer.index([next(iter) for i in range(200)])
+        docs = [next(iter) for i in range(200)]
+        docs.insert(100, {'docno': 'empty', 'text': ''})  # truly empty
+        docs.insert(105, {'docno': 'empty', 'text': ' '})  # whitespace only
+        factory = indexer.index(docs)
+        self.assertEqual(200, len(factory))  # check that empty docs are indeed ignored
 
 
 
