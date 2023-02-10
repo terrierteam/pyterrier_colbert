@@ -86,6 +86,25 @@ class TestIndexing(unittest.TestCase):
     # def test_indexing_1doc_half(self):
     #     self._indexing_1doc('half')
 
+    def test_indexing_skip_empty_docs(self):
+        import pyterrier as pt
+        from pyterrier_colbert.indexing import ColBERTIndexer
+        import os
+        indexer = ColBERTIndexer(
+            model,
+            os.path.dirname(self.test_dir), os.path.basename(self.test_dir),
+            chunksize=3,
+            # indexmgr=indexmgr,
+            gpu=False,
+            skip_empty_docs=True)
+
+        if dim is not None:
+            indexer.args.dim = dim
+        iter = pt.get_dataset("vaswani").get_corpus_iter()
+        indexer.index([next(iter) for i in range(200)])
+
+
+
     def indexing_docnos_correctly_empty(self):
         #A test case to see whether empty passages are handled correctly. 
         import pyterrier as pt
