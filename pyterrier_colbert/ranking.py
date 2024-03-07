@@ -613,14 +613,19 @@ class ColBERTFactory(ColBERTModelOnlyFactory):
         """
         Returns an instance of the Colbert FaissIndex class, which provides nearest neighbour information
         """
+        import glob
         from colbert.indexing.faiss import get_faiss_index_name
         from colbert.ranking.faiss_index import FaissIndex
         if self.faiss_index is not None:
             return self.faiss_index
-        faiss_index_path = get_faiss_index_name(self.args)
-        faiss_index_path = os.path.join(self.index_path, faiss_index_path)
-        if not os.path.exists(faiss_index_path):
-            raise ValueError("No faiss index found at %s" % faiss_index_path)
+        faiss_index_name = get_faiss_index_name(self.args)  # This should return something like 'ivfpq.faiss'
+        index_name = faiss_index_name.split('.')[0]
+        faiss_index_files = glob.glob(os.path.join(self.index_path, f"{index_name}*.faiss"))
+        if not faiss_index_files:
+            raise ValueError(f"No FAISS index found matching pattern {index_name}*.faiss in {self.index_path}")
+        faiss_index_path = faiss_index_files[0] # choose the first index file that matches the pattern
+        if len(faiss_index_files) > 1:
+            warn(f"More than one FAISS index file matching the pattern {index_name}*.faiss found in {self.index_path}\nChoosing the first one which is at {faiss_index_path}")
         self.faiss_index = FaissIndex(self.index_path, faiss_index_path, self.args.nprobe, self.args.part_range, mmap=self.faisstype == 'mmap')
         # ensure the faiss_index is transferred to GPU memory for speed
         import faiss
