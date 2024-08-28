@@ -22,7 +22,7 @@ dense_e2e = pytcolbert.end_to_end()
 
 A ColBERT re-ranker of BM25 can be formulated as follows (you will need to have an index with [text saved](https://pyterrier.readthedocs.io/en/latest/text.html) - the Terrier data repostiory conviniently [provides such an index](http://data.terrier.org/msmarco_passage.dataset.html#terrier_stemmed_text)):
 ```python
-bm25 = pt.BatchRetrieve.from_dataset('msmarco_passage', 'terrier_stemmed_text', wmodel='BM25', metadata=['docno', 'text'])
+bm25 = pt.terrier.Retriever.from_dataset('msmarco_passage', 'terrier_stemmed_text', wmodel='BM25', metadata=['docno', 'text'])
 sparse_colbert = bm25 >> pytcolbert.text_scorer()
 ```
 
