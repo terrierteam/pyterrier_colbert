@@ -2,6 +2,8 @@
 
 Advanced [PyTerrier](https://github.com/terrier-org/pyterrier) bindings for [ColBERT](https://github.com/stanford-futuredata/ColBERT/), including for dense indexing and retrieval. This also includes the implementations of [ColBERT PRF](https://arxiv.org/abs/2106.11251), [approximate ANN scoring](https://arxiv.org/abs/2108.11480) and [query embedding pruning](https://arxiv.org/abs/2108.10341). 
 
+⚠️ ***This code is deprecated and replaced by [pyterrier_colbert2](https://github.com/cmacdonald/pyterrier_colbert2/).***
+
 ## Usage
 
 Given an existing ColBERT checkpoint, an end-to-end ColBERT dense retrieval index can be created as follows:
